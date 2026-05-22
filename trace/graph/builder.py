@@ -151,7 +151,7 @@ class CuriosityGraphBuilder:
             debt_score = 0.0
             curiosity_type = CuriosityType.SHALLOW
 
-        source_types = {s.source for s in matched}
+        source_types = frozenset(s.source for s in matched)
 
         return Topic(
             name=raw["name"],

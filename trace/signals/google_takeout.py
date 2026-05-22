@@ -80,11 +80,6 @@ class GoogleTakeoutCollector(SignalCollector):
         history_path: Path,
         since: datetime | None = None,
     ) -> None:
-        if not history_path.exists():
-            raise SignalCollectionError(
-                self.source,
-                f"BrowserHistory.json not found: {history_path}",
-            )
         if since is not None and since.tzinfo is None:
             raise ValueError(
                 "GoogleTakeoutCollector.since must be timezone-aware. "
@@ -94,6 +89,11 @@ class GoogleTakeoutCollector(SignalCollector):
         self._since = since
 
     async def collect(self) -> list[RawSignal]:
+        if not self._path.exists():
+            raise SignalCollectionError(
+                self.source,
+                f"BrowserHistory.json not found: {self._path}",
+            )
         try:
             raw = await asyncio.to_thread(self._path.read_text, encoding="utf-8")
             data: dict[str, Any] = json.loads(raw)

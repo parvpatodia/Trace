@@ -77,11 +77,13 @@ class RawSignal(BaseModel):
 
 
 class Topic(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str = Field(min_length=1, max_length=200)
     aliases: list[str] = Field(default_factory=list)
     signal_ids: list[str] = Field(default_factory=list)
-    source_types: set[SignalSource] = Field(default_factory=set)
+    source_types: frozenset[SignalSource] = Field(default_factory=frozenset)
 
     first_seen: datetime | None = None
     last_seen: datetime | None = None

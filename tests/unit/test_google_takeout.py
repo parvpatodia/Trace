@@ -56,10 +56,11 @@ def valid_entry(
 # ── Constructor validation ────────────────────────────────────────────────────
 
 class TestConstructorValidation:
-    def test_missing_file_raises_signal_collection_error(self, tmp_path: Path) -> None:
+    async def test_missing_file_raises_signal_collection_error(self, tmp_path: Path) -> None:
         path = tmp_path / "nonexistent.json"
+        collector = GoogleTakeoutCollector(path)
         with pytest.raises(SignalCollectionError) as exc_info:
-            GoogleTakeoutCollector(path)
+            await collector.collect()
         assert exc_info.value.source == SignalSource.GOOGLE_TAKEOUT
         assert "BrowserHistory.json not found" in str(exc_info.value)
 

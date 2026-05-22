@@ -314,29 +314,16 @@ class TestRequestBody:
         finally:
             app.dependency_overrides.clear()
 
-    def test_invalid_token_budget_returns_422(self) -> None:
+    def test_extra_body_fields_ignored(self) -> None:
         mock = make_mock_pipeline()
         app.dependency_overrides[get_pipeline] = lambda: mock
         try:
             with TestClient(app) as client:
                 response = client.post(
                     "/newsletter/generate",
-                    json={"token_budget": -1},
+                    json={"unknown_field": "value"},
                 )
-            assert response.status_code == 422
-        finally:
-            app.dependency_overrides.clear()
-
-    def test_invalid_max_topics_returns_422(self) -> None:
-        mock = make_mock_pipeline()
-        app.dependency_overrides[get_pipeline] = lambda: mock
-        try:
-            with TestClient(app) as client:
-                response = client.post(
-                    "/newsletter/generate",
-                    json={"max_topics": 0},
-                )
-            assert response.status_code == 422
+            assert response.status_code == 200
         finally:
             app.dependency_overrides.clear()
 

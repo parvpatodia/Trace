@@ -78,11 +78,6 @@ class ChatGPTExportCollector(SignalCollector):
         export_path: Path,
         since: datetime | None = None,
     ) -> None:
-        if not export_path.exists():
-            raise SignalCollectionError(
-                self.source,
-                f"conversations.json not found: {export_path}",
-            )
         if since is not None and since.tzinfo is None:
             raise ValueError(
                 "ChatGPTExportCollector.since must be timezone-aware. "
@@ -92,6 +87,11 @@ class ChatGPTExportCollector(SignalCollector):
         self._since = since
 
     async def collect(self) -> list[RawSignal]:
+        if not self._path.exists():
+            raise SignalCollectionError(
+                self.source,
+                f"conversations.json not found: {self._path}",
+            )
         try:
             raw = await asyncio.to_thread(self._path.read_text, encoding="utf-8")
             conversations: list[dict[str, Any]] = json.loads(raw)

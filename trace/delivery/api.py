@@ -26,7 +26,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from trace.pipeline.runner import PipelineError, PipelineResult, TracePipeline
 
@@ -34,9 +34,7 @@ from trace.pipeline.runner import PipelineError, PipelineResult, TracePipeline
 # ── Request / response models ─────────────────────────────────────────────────
 
 class GenerateRequest(BaseModel):
-    token_budget: int = Field(default=8_000, ge=1)
-    max_topics: int = Field(default=5, ge=1)
-    max_articles_per_topic: int = Field(default=3, ge=1)
+    pass
 
 
 class SectionResponse(BaseModel):
@@ -118,6 +116,7 @@ def _build_pipeline_from_settings() -> TracePipeline | None:
         builder = CuriosityGraphBuilder(
             extractor=extractor,
             half_life_days=settings.recency_half_life_days,
+            debt_threshold_occurrences=settings.debt_occurrence_threshold,
         )
         assembler = ContextWindowAssembler(
             token_budget=settings.context_token_budget,
@@ -134,6 +133,7 @@ def _build_pipeline_from_settings() -> TracePipeline | None:
             builder=builder,
             assembler=assembler,
             composer=composer,
+            max_concurrent_scrapers=settings.scraper_max_concurrent,
         )
     except Exception:
         return None
@@ -183,7 +183,6 @@ async def health() -> dict[str, str]:
 
 @app.post("/newsletter/generate", response_model=GenerateResponse)
 async def generate_newsletter(
-    request: GenerateRequest = GenerateRequest(),
     pipeline: TracePipeline = Depends(get_pipeline),
 ) -> GenerateResponse:
     try:

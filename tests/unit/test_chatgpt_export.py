@@ -99,12 +99,13 @@ def single_user_message(
 # ── Constructor validation ────────────────────────────────────────────────────
 
 class TestConstructorValidation:
-    def test_missing_file_raises_signal_collection_error(
+    async def test_missing_file_raises_signal_collection_error(
         self, tmp_path: Path
     ) -> None:
         path = tmp_path / "nonexistent.json"
+        collector = ChatGPTExportCollector(path)
         with pytest.raises(SignalCollectionError) as exc_info:
-            ChatGPTExportCollector(path)
+            await collector.collect()
         assert exc_info.value.source == SignalSource.CHATGPT_EXPORT
         assert "conversations.json not found" in str(exc_info.value)
 

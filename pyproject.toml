@@ -68,7 +68,6 @@ filterwarnings = [
 [tool.coverage.run]
 omit = [
     "tests/*",
-    "trace/pipeline/nodes.py",
 ]
 
 [tool.ruff]

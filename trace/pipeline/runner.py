@@ -43,6 +43,7 @@ from trace.models import (
     Newsletter,
     RawSignal,
     ScrapedArticle,
+    Topic,
 )
 from trace.scraper.base import ArticleScraper
 from trace.signals.base import SignalCollector
@@ -90,6 +91,7 @@ class TracePipeline:
         builder: CuriosityGraphBuilder,
         assembler: ContextWindowAssembler,
         composer: NewsletterComposer,
+        max_concurrent_scrapers: int = 5,
     ) -> None:
         if not collectors:
             raise ValueError("collectors must be a non-empty list")
@@ -101,12 +103,15 @@ class TracePipeline:
             raise ValueError("assembler must not be None")
         if composer is None:
             raise ValueError("composer must not be None")
+        if max_concurrent_scrapers < 1:
+            raise ValueError("max_concurrent_scrapers must be >= 1")
 
         self._collectors = collectors
         self._scrapers = scrapers
         self._builder = builder
         self._assembler = assembler
         self._composer = composer
+        self._max_concurrent_scrapers = max_concurrent_scrapers
         self._graph = self._build_graph()
 
     # ── LangGraph construction ──────────────────────────────────────────────
@@ -166,8 +171,14 @@ class TracePipeline:
             return {"articles": [], "errors": errors}
 
         topics = list(graph.top_n(len(graph.topics)))
+        semaphore = asyncio.Semaphore(self._max_concurrent_scrapers)
+
+        async def _scrape_limited(scraper: ArticleScraper, topic: Topic) -> list[ScrapedArticle]:
+            async with semaphore:
+                return await scraper.scrape(topic)
+
         tasks = [
-            scraper.scrape(topic)
+            _scrape_limited(scraper, topic)
             for topic in topics
             for scraper in self._scrapers
         ]
