@@ -462,6 +462,16 @@ _FRONTEND_HTML = """<!DOCTYPE html>
   }
   .errors-box h4 { margin-bottom: 0.4rem; font-weight: 600; }
   .errors-box li { margin-left: 1rem; margin-top: 0.2rem; }
+  .privacy-note {
+    font-size: 0.78rem; color: var(--muted);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    line-height: 1.6;
+  }
+  .privacy-note strong { color: var(--text); }
   footer { margin-top: 3rem; text-align: center; font-size: 0.78rem; color: var(--muted); }
 </style>
 </head>
@@ -471,6 +481,14 @@ _FRONTEND_HTML = """<!DOCTYPE html>
     <h1>Tr<span>a</span>ce</h1>
     <p>Upload your browsing history. Get a newsletter that reflects <em>your</em> curiosity.</p>
   </header>
+
+  <div class="privacy-note">
+    <strong>Your data stays yours.</strong>
+    You export your own history file locally from Google or ChatGPT — you never hand over
+    any password, OAuth token, or account access. The file is sent only to this server,
+    used once to generate your newsletter, then <strong>deleted immediately</strong>.
+    Nothing is stored, logged, or shared beyond the newsletter itself.
+  </div>
 
   <div class="card">
     <div class="tabs">
@@ -826,6 +844,17 @@ async def generate_from_upload(
         )
     except PipelineError as e:
         raise HTTPException(status_code=503, detail=str(e))
+    finally:
+        # Delete uploaded files immediately after pipeline use — they contain
+        # sensitive personal data (browsing/conversation history) and must not
+        # persist on the server longer than necessary.
+        for p in [history_path, chatgpt_path]:
+            if p and p.exists():
+                try:
+                    p.unlink()
+                    _log.info("Deleted uploaded file: %s", p.name)
+                except OSError as exc:
+                    _log.warning("Could not delete uploaded file %s: %s", p.name, exc)
 
     newsletter = result.newsletter
     response = GenerateResponse(

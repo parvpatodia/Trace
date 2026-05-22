@@ -15,3 +15,8 @@ htmlcov/
 *.coverage
 trace_audit.jsonl
 trace_data.db
+
+# User-uploaded signal files — contain sensitive browsing/conversation data
+uploads/
+BrowserHistory.json
+conversations.json
