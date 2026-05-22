@@ -29,9 +29,12 @@ class Settings(BaseSettings):
 
     scraper_max_concurrent: int = Field(default=5, ge=1, le=20)
     context_token_budget: int = Field(default=8_000, ge=1_000, le=50_000)
+    max_topics: int = Field(default=5, ge=1, le=20)
+    max_articles_per_topic: int = Field(default=3, ge=1, le=10)
     debt_occurrence_threshold: int = Field(default=3, ge=2, le=20)
     recency_half_life_days: int = Field(default=14, ge=1, le=365)
 
+    browser_history_path: Path = Path("./BrowserHistory.json")
     audit_log_path: Path = Path("./trace_audit.jsonl")
 
     api_host: str = "0.0.0.0"
@@ -54,9 +57,9 @@ class Settings(BaseSettings):
             )
         return v
 
-    @field_validator("audit_log_path", mode="before")
+    @field_validator("browser_history_path", "audit_log_path", mode="before")
     @classmethod
-    def resolve_audit_path(cls, v: str | Path) -> Path:
+    def resolve_path(cls, v: str | Path) -> Path:
         return Path(v).resolve()
 
 

@@ -24,7 +24,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -105,8 +105,9 @@ def _build_pipeline_from_settings() -> TracePipeline | None:
             user_agent=settings.reddit_user_agent,
         )
 
+        history_path = settings.browser_history_path
         collectors = [
-            GoogleTakeoutCollector(history_path=Path("./BrowserHistory.json")),
+            GoogleTakeoutCollector(history_path=history_path),
         ]
         scrapers = [
             ArXivScraper(),
@@ -120,8 +121,8 @@ def _build_pipeline_from_settings() -> TracePipeline | None:
         )
         assembler = ContextWindowAssembler(
             token_budget=settings.context_token_budget,
-            max_topics=5,
-            max_articles_per_topic=3,
+            max_topics=settings.max_topics,
+            max_articles_per_topic=settings.max_articles_per_topic,
         )
         composer = NewsletterComposer(
             client=anthropic_client,
@@ -130,7 +131,6 @@ def _build_pipeline_from_settings() -> TracePipeline | None:
         return TracePipeline(
             collectors=collectors,
             scrapers=scrapers,
-            extractor=extractor,
             builder=builder,
             assembler=assembler,
             composer=composer,
@@ -159,17 +159,19 @@ app.add_middleware(
 
 # ── Dependencies ──────────────────────────────────────────────────────────────
 
-def get_pipeline() -> TracePipeline:
+def get_pipeline(request: Request) -> TracePipeline:
     """
     FastAPI dependency returning the shared TracePipeline instance.
-    Override in tests: app.dependency_overrides[get_pipeline] = lambda: mock
+    In production: reads from app.state.pipeline (set by lifespan).
+    In tests: override via app.dependency_overrides[get_pipeline] = lambda: mock
     """
-    from fastapi import Request
-
-    # This function body is replaced in tests; in production the Request
-    # comes from the middleware chain. We import lazily to avoid circular
-    # issues at module load time in tests.
-    raise NotImplementedError("get_pipeline must be overridden or pipeline set on app.state")
+    pipeline: TracePipeline | None = getattr(request.app.state, "pipeline", None)
+    if pipeline is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Pipeline not initialized — check server configuration and environment variables",
+        )
+    return pipeline
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────

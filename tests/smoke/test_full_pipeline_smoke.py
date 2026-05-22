@@ -75,16 +75,6 @@ def _make_signals() -> list[RawSignal]:
     ]
 
 
-def _make_extractor_response(signals: list[RawSignal]) -> list[dict]:
-    return [
-        {
-            "name": "transformer architecture",
-            "aliases": ["attention mechanism", "ViT"],
-            "signal_ids": [s.id for s in signals],
-        }
-    ]
-
-
 def _make_claude_message(content: str) -> MagicMock:
     msg = MagicMock()
     msg.content = [MagicMock(text=content)]
@@ -200,7 +190,6 @@ async def test_full_pipeline_end_to_end(arxiv_xml: str, hn_json: dict) -> None:
         pipeline = TracePipeline(
             collectors=[FakeSignalCollector(signals)],
             scrapers=[ArXivScraper(), HackerNewsScraper()],
-            extractor=extractor,
             builder=builder,
             assembler=assembler,
             composer=composer,
@@ -246,7 +235,6 @@ async def test_pipeline_with_partial_scraper_failure(arxiv_xml: str) -> None:
         pipeline = TracePipeline(
             collectors=[FakeSignalCollector(signals)],
             scrapers=[ArXivScraper(), HackerNewsScraper()],
-            extractor=extractor,
             builder=builder,
             assembler=assembler,
             composer=composer,
@@ -283,7 +271,6 @@ async def test_pipeline_result_newsletter_renders_html(arxiv_xml: str, hn_json: 
         pipeline = TracePipeline(
             collectors=[FakeSignalCollector(signals)],
             scrapers=[ArXivScraper(), HackerNewsScraper()],
-            extractor=extractor,
             builder=builder,
             assembler=assembler,
             composer=composer,

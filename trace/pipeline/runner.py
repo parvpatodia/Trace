@@ -3,7 +3,7 @@ TracePipeline — orchestrates the full Trace pipeline as a LangGraph StateGraph
 
 Pipeline stages (sequential):
   1. collect_signals  — runs all SignalCollectors concurrently
-  2. build_graph      — TopicExtractor → CuriosityGraphBuilder
+  2. build_graph      — CuriosityGraphBuilder (which calls TopicExtractor internally)
   3. scrape_articles  — runs all ArticleScrapers for each topic concurrently
   4. assemble_context — ContextWindowAssembler packs content into token budget
   5. compose_newsletter — NewsletterComposer calls Claude
@@ -12,12 +12,18 @@ Error contract:
   - Collector failures: recorded in state.errors, pipeline continues
   - Scraper failures: recorded in state.errors, pipeline continues
   - No signals after collection: raises PipelineError (unrecoverable)
+  - Graph build failure: raises PipelineError (unrecoverable)
   - NewsletterGenerationError: re-raised as PipelineError
 
 WHY LangGraph StateGraph:
   Gives a typed, inspectable execution graph with built-in state passing.
   Each node receives the full state and returns a partial update dict.
   This makes individual nodes unit-testable without running the full graph.
+
+WHY builder owns the extractor, not the pipeline:
+  CuriosityGraphBuilder encapsulates the two-pass algorithm (extract → score).
+  Exposing the extractor separately at the pipeline level would duplicate the
+  extract call. The pipeline delegates entirely to builder.build().
 """
 
 from __future__ import annotations
@@ -32,7 +38,6 @@ from pydantic import BaseModel, ConfigDict
 from trace.composer.assembler import AssemblyContext, ContextWindowAssembler
 from trace.composer.newsletter import NewsletterComposer, NewsletterGenerationError
 from trace.graph.builder import CuriosityGraphBuilder
-from trace.graph.extractor import TopicExtractor
 from trace.models import (
     CuriosityGraph,
     Newsletter,
@@ -73,8 +78,7 @@ class TracePipeline:
     Parameters:
         collectors: list of SignalCollector instances (≥1 required).
         scrapers: list of ArticleScraper instances (≥1 required).
-        extractor: TopicExtractor for extracting topics from signals.
-        builder: CuriosityGraphBuilder for scoring and building the graph.
+        builder: CuriosityGraphBuilder — owns the TopicExtractor internally.
         assembler: ContextWindowAssembler for packing the context window.
         composer: NewsletterComposer for calling Claude.
     """
@@ -83,7 +87,6 @@ class TracePipeline:
         self,
         collectors: list[SignalCollector],
         scrapers: list[ArticleScraper],
-        extractor: TopicExtractor,
         builder: CuriosityGraphBuilder,
         assembler: ContextWindowAssembler,
         composer: NewsletterComposer,
@@ -92,8 +95,6 @@ class TracePipeline:
             raise ValueError("collectors must be a non-empty list")
         if not scrapers:
             raise ValueError("scrapers must be a non-empty list")
-        if extractor is None:
-            raise ValueError("extractor must not be None")
         if builder is None:
             raise ValueError("builder must not be None")
         if assembler is None:
@@ -103,7 +104,6 @@ class TracePipeline:
 
         self._collectors = collectors
         self._scrapers = scrapers
-        self._extractor = extractor
         self._builder = builder
         self._assembler = assembler
         self._composer = composer
@@ -152,8 +152,10 @@ class TracePipeline:
         return {"signals": signals, "errors": errors}
 
     async def _node_build_graph(self, state: _State) -> dict:
-        topics_data = await self._extractor.extract(state["signals"])
-        graph = await self._builder.build(state["signals"])
+        try:
+            graph = await self._builder.build(state["signals"])
+        except Exception as e:
+            raise PipelineError(f"Failed to build curiosity graph: {e}") from e
         return {"graph": graph}
 
     async def _node_scrape_articles(self, state: _State) -> dict:

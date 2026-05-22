@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from typing import Any, TypedDict
 
 import anthropic
@@ -88,6 +89,16 @@ Respond ONLY with a valid JSON array in this exact format (no prose, no markdown
 ]
 
 If no topics are found, respond with an empty array: []"""
+
+
+_FENCE_RE = re.compile(r"^```[a-zA-Z]*\n?(.*?)\n?```$", re.DOTALL)
+
+
+def _strip_markdown_fence(text: str) -> str:
+    """Remove markdown code fences Claude sometimes wraps JSON responses in."""
+    stripped = text.strip()
+    m = _FENCE_RE.match(stripped)
+    return m.group(1).strip() if m else stripped
 
 
 class TopicExtractor:
@@ -170,6 +181,7 @@ class TopicExtractor:
     def _parse_response(
         self, text: str, valid_ids: frozenset[str]
     ) -> list[RawTopicData]:
+        text = _strip_markdown_fence(text)
         try:
             parsed: Any = json.loads(text)
         except json.JSONDecodeError as e:

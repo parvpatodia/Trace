@@ -32,12 +32,15 @@ WHY asyncio.to_thread:
 from __future__ import annotations
 
 import asyncio
+import html as _html
 import json
+import re
 import textwrap
 from datetime import datetime, timezone
 from typing import Any
 
 import anthropic
+from pydantic import ValidationError
 
 from trace.composer.assembler import AssemblyContext
 from trace.models import Newsletter, NewsletterSection
@@ -166,7 +169,18 @@ def _build_user_message(ctx: AssemblyContext) -> str:
     return json.dumps(payload, indent=2)
 
 
+_FENCE_RE = re.compile(r"^```[a-zA-Z]*\n?(.*?)\n?```$", re.DOTALL)
+
+
+def _strip_markdown_fence(text: str) -> str:
+    """Remove markdown code fences Claude sometimes wraps JSON responses in."""
+    stripped = text.strip()
+    m = _FENCE_RE.match(stripped)
+    return m.group(1).strip() if m else stripped
+
+
 def _parse_response(text: str) -> dict[str, Any]:
+    text = _strip_markdown_fence(text)
     try:
         data = json.loads(text)
     except json.JSONDecodeError as e:
@@ -210,7 +224,7 @@ def _build_newsletter(data: dict[str, Any]) -> Newsletter:
             plain_text=plain_text,
             html=html,
         )
-    except (KeyError, ValueError) as e:
+    except (KeyError, ValueError, ValidationError) as e:
         raise NewsletterGenerationError(
             f"Failed to build Newsletter from Claude response: {e}"
         ) from e
@@ -231,17 +245,19 @@ def _render_plain(subject: str, sections: tuple[NewsletterSection, ...]) -> str:
 
 
 def _render_html(subject: str, sections: tuple[NewsletterSection, ...]) -> str:
+    e = _html.escape
     parts = [
         "<!DOCTYPE html><html><body>",
-        f"<h1>{subject}</h1>",
+        f"<h1>{e(subject)}</h1>",
     ]
     for s in sections:
-        parts.append(f"<h2>{s.title}</h2>")
-        parts.append(f"<p>{s.content}</p>")
+        parts.append(f"<h2>{e(s.title)}</h2>")
+        parts.append(f"<p>{e(s.content)}</p>")
         if s.source_urls:
             parts.append("<ul>")
             for url in s.source_urls:
-                parts.append(f'<li><a href="{url}">{url}</a></li>')
+                safe_url = e(url, quote=True)
+                parts.append(f'<li><a href="{safe_url}">{e(url)}</a></li>')
             parts.append("</ul>")
     parts.append("</body></html>")
     return "".join(parts)

@@ -120,10 +120,10 @@ class RedditSearchScraper(ArticleScraper):
         if len(title) < _MIN_TITLE_LENGTH:
             return None
 
-        permalink: str = post.permalink or ""
-        url = f"{_REDDIT_BASE}{permalink}"
-        if not (url.startswith("http://") or url.startswith("https://")):
+        permalink: str = (post.permalink or "").strip()
+        if not permalink or not permalink.startswith("/"):
             return None
+        url = f"{_REDDIT_BASE}{permalink}"
 
         summary: str = (post.selftext or "").strip()[:3000]
         published_at = datetime.fromtimestamp(

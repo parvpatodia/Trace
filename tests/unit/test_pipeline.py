@@ -118,20 +118,6 @@ def make_mock_scraper(articles: list[ScrapedArticle]) -> MagicMock:
     return scraper
 
 
-def make_mock_extractor(topics_data: list[dict] | None = None) -> MagicMock:
-    extractor = MagicMock()
-    if topics_data is None:
-        topics_data = [
-            {
-                "name": "transformer architecture",
-                "aliases": [],
-                "signal_ids": [],
-            }
-        ]
-    extractor.extract = AsyncMock(return_value=topics_data)
-    return extractor
-
-
 def make_mock_builder(graph: CuriosityGraph) -> MagicMock:
     builder = MagicMock()
     builder.build = AsyncMock(return_value=graph)
@@ -156,7 +142,6 @@ _SENTINEL = object()
 def make_pipeline(
     collectors=_SENTINEL,
     scrapers=_SENTINEL,
-    extractor=_SENTINEL,
     builder=_SENTINEL,
     assembler=_SENTINEL,
     composer=_SENTINEL,
@@ -172,7 +157,6 @@ def make_pipeline(
     return TracePipeline(
         collectors=collectors if collectors is not _SENTINEL else [make_mock_collector([make_raw_signal()])],
         scrapers=scrapers if scrapers is not _SENTINEL else [make_mock_scraper([article])],
-        extractor=extractor if extractor is not _SENTINEL else make_mock_extractor(),
         builder=builder if builder is not _SENTINEL else make_mock_builder(graph),
         assembler=assembler if assembler is not _SENTINEL else make_mock_assembler(ctx),
         composer=composer if composer is not _SENTINEL else make_mock_composer(newsletter),
@@ -193,10 +177,6 @@ class TestConstructor:
     def test_empty_scrapers_raises(self) -> None:
         with pytest.raises(ValueError, match="scrapers"):
             make_pipeline(scrapers=[])
-
-    def test_none_extractor_raises(self) -> None:
-        with pytest.raises(ValueError, match="extractor"):
-            make_pipeline(extractor=None)
 
     def test_none_builder_raises(self) -> None:
         with pytest.raises(ValueError, match="builder"):
@@ -282,10 +262,12 @@ class TestBuildGraph:
         result = await make_pipeline(builder=builder).run()
         builder.build.assert_called_once()
 
-    async def test_extractor_called_with_signals(self) -> None:
-        extractor = make_mock_extractor()
-        await make_pipeline(extractor=extractor).run()
-        extractor.extract.assert_called_once()
+    async def test_builder_called_with_signals(self) -> None:
+        topic = make_topic()
+        graph = make_graph(topic)
+        builder = make_mock_builder(graph)
+        await make_pipeline(builder=builder).run()
+        builder.build.assert_called_once()
 
     async def test_no_signals_raises_pipeline_error(self) -> None:
         collector = make_mock_collector([])  # returns no signals

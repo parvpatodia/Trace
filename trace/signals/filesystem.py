@@ -96,12 +96,13 @@ class FileSystemCollector(SignalCollector):
 
     async def collect(self) -> list[RawSignal]:
         paths = await asyncio.to_thread(self._find_files)
-        signals: list[RawSignal] = []
-        for path in paths:
-            signal = await asyncio.to_thread(self._parse_file, path)
-            if signal is not None:
-                signals.append(signal)
-        return signals
+        if not paths:
+            return []
+        results = await asyncio.gather(
+            *(asyncio.to_thread(self._parse_file, p) for p in paths),
+            return_exceptions=True,
+        )
+        return [r for r in results if isinstance(r, RawSignal)]
 
     def _find_files(self) -> list[Path]:
         seen: set[Path] = set()
