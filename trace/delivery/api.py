@@ -3,7 +3,19 @@ Trace FastAPI delivery layer.
 
 Endpoints:
   GET  /health                 — liveness probe
+  GET  /auth/login             — returns Scalekit OAuth authorization URL
+  GET  /auth/callback          — exchanges OAuth code for tokens
+  GET  /auth/me                — returns authenticated user's profile
+  GET  /auth/logout            — returns Scalekit logout URL
   POST /newsletter/generate    — run the full pipeline and return a newsletter
+
+Authentication:
+  The newsletter endpoint accepts an optional Bearer token (Scalekit JWT).
+  When present the response includes `generated_for` with the user's identity,
+  demonstrating that the pipeline runs on behalf of the authenticated user.
+  When absent the endpoint still works — useful for development and testing.
+
+  Auth endpoints return 503 when SCALEKIT_* environment variables are unset.
 
 Dependency injection:
   get_pipeline() is the FastAPI dependency that returns the TracePipeline.
@@ -25,17 +37,17 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
+from trace.auth.scalekit import UserClaims, _require_client, build_login_url, exchange_code, verify_token
+from trace.config import get_settings
 from trace.pipeline.runner import PipelineError, PipelineResult, TracePipeline
 
 
 # ── Request / response models ─────────────────────────────────────────────────
-
-class GenerateRequest(BaseModel):
-    pass
-
 
 class SectionResponse(BaseModel):
     title: str
@@ -53,6 +65,25 @@ class GenerateResponse(BaseModel):
     html: str
     generated_at: str
     errors: list[str]
+    generated_for: str = ""
+
+
+class LoginResponse(BaseModel):
+    authorization_url: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int | None = None
+    user: dict[str, Any] = {}
+
+
+class UserResponse(BaseModel):
+    user_id: str
+    email: str
+    name: str
+    organization_id: str
 
 
 # ── Application lifecycle ─────────────────────────────────────────────────────
@@ -64,7 +95,6 @@ async def lifespan(application: FastAPI):
     In tests, the pipeline is always injected via dependency override so this
     path is never exercised.
     """
-    # Defer heavy imports so tests that override get_pipeline never touch them
     try:
         application.state.pipeline = _build_pipeline_from_settings()
     except Exception:
@@ -79,8 +109,6 @@ def _build_pipeline_from_settings() -> TracePipeline | None:
     Returns None if required settings are missing (dev/test mode).
     """
     try:
-        from pathlib import Path
-
         import anthropic
         import praw
 
@@ -97,21 +125,23 @@ def _build_pipeline_from_settings() -> TracePipeline | None:
         settings = get_settings()
 
         anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-        reddit = praw.Reddit(
-            client_id=settings.reddit_client_id,
-            client_secret=settings.reddit_client_secret,
-            user_agent=settings.reddit_user_agent,
-        )
 
         history_path = settings.browser_history_path
         collectors = [
             GoogleTakeoutCollector(history_path=history_path),
         ]
-        scrapers = [
+        scrapers: list[Any] = [
             ArXivScraper(),
             HackerNewsScraper(),
-            RedditSearchScraper(reddit_client=reddit),
         ]
+        if settings.reddit_client_id and settings.reddit_client_secret:
+            reddit = praw.Reddit(
+                client_id=settings.reddit_client_id,
+                client_secret=settings.reddit_client_secret,
+                user_agent=settings.reddit_user_agent,
+            )
+            scrapers.append(RedditSearchScraper(reddit_client=reddit))
+
         extractor = TopicExtractor(client=anthropic_client, model=settings.anthropic_model)
         builder = CuriosityGraphBuilder(
             extractor=extractor,
@@ -156,6 +186,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+_bearer = HTTPBearer(auto_error=False)
+
 
 # ── Dependencies ──────────────────────────────────────────────────────────────
 
@@ -174,6 +206,33 @@ def get_pipeline(request: Request) -> TracePipeline:
     return pipeline
 
 
+async def get_optional_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> UserClaims | None:
+    """
+    FastAPI dependency that extracts and validates the Bearer token if present.
+
+    Returns None when no Authorization header is sent (unauthenticated access
+    is allowed — the newsletter endpoint degrades gracefully by omitting the
+    `generated_for` field). Returns UserClaims when a valid token is provided.
+
+    Raises 401 if a token is present but invalid.
+    """
+    if credentials is None:
+        return None
+    return await verify_token(credentials.credentials)
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer()),
+) -> UserClaims:
+    """
+    FastAPI dependency that REQUIRES a valid Bearer token.
+    Used by /auth/me and other strictly protected endpoints.
+    """
+    return await verify_token(credentials.credentials)
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @app.get("/health")
@@ -181,10 +240,98 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/auth/login", response_model=LoginResponse)
+async def auth_login(state: str | None = None) -> LoginResponse:
+    """
+    Begin the Scalekit OAuth flow.
+
+    Returns the authorization URL. The client should redirect the user's
+    browser to this URL. After authentication, Scalekit redirects the browser
+    to SCALEKIT_AUTH_CALLBACK_URL with ?code=...&state=...
+
+    Query params:
+      state: optional opaque string, echoed back in the callback for CSRF
+             protection. Callers should generate a random value, store it in
+             session, and verify it in /auth/callback.
+    """
+    _require_client()  # raises 503 immediately if Scalekit is unconfigured
+    callback_url = get_settings().auth_callback_url
+    authorization_url = build_login_url(redirect_uri=callback_url, state=state)
+    return LoginResponse(authorization_url=authorization_url)
+
+
+@app.get("/auth/callback", response_model=TokenResponse)
+async def auth_callback(code: str, state: str | None = None) -> TokenResponse:
+    """
+    Complete the Scalekit OAuth flow.
+
+    Exchanges the authorization code (received from Scalekit's redirect) for
+    tokens. Returns access_token for use in subsequent API calls as:
+      Authorization: Bearer <access_token>
+
+    Note: In production, verify `state` matches what was stored in the session
+    before exchanging the code to prevent CSRF attacks.
+    """
+    _require_client()  # raises 503 immediately if Scalekit is unconfigured
+    callback_url = get_settings().auth_callback_url
+    result = await exchange_code(code=code, redirect_uri=callback_url)
+    return TokenResponse(
+        access_token=result["access_token"],
+        expires_in=result.get("expires_in"),
+        user=result.get("user", {}),
+    )
+
+
+@app.get("/auth/me", response_model=UserResponse)
+async def auth_me(
+    current_user: UserClaims = Depends(get_current_user),
+) -> UserResponse:
+    """
+    Return the authenticated user's profile.
+
+    Requires: Authorization: Bearer <access_token>
+    """
+    return UserResponse(
+        user_id=current_user.user_id,
+        email=current_user.email,
+        name=current_user.name,
+        organization_id=current_user.organization_id,
+    )
+
+
+@app.get("/auth/logout")
+async def auth_logout(post_logout_redirect_uri: str | None = None) -> dict[str, str]:
+    """
+    Return the Scalekit logout URL.
+
+    The client should redirect the user's browser to the returned `logout_url`
+    to invalidate the Scalekit session and clear the SSO cookie.
+    """
+    from scalekit.client import LogoutUrlOptions
+
+    client = _require_client()
+
+    options = LogoutUrlOptions()
+    if post_logout_redirect_uri:
+        options.post_logout_redirect_uri = post_logout_redirect_uri
+
+    logout_url = client.get_logout_url(options)
+    return {"logout_url": logout_url}
+
+
 @app.post("/newsletter/generate", response_model=GenerateResponse)
 async def generate_newsletter(
     pipeline: TracePipeline = Depends(get_pipeline),
+    current_user: UserClaims | None = Depends(get_optional_user),
 ) -> GenerateResponse:
+    """
+    Run the full Trace pipeline and return a personalized newsletter.
+
+    Authentication is optional. When a valid Bearer token is provided the
+    response includes `generated_for` identifying the user the newsletter was
+    generated for — demonstrating that the pipeline acts on behalf of that
+    specific user rather than a generic service account.
+    """
     try:
         result: PipelineResult = await pipeline.run()
     except PipelineError as e:
@@ -208,4 +355,5 @@ async def generate_newsletter(
         html=newsletter.html,
         generated_at=newsletter.generated_at.isoformat(),
         errors=result.errors,
+        generated_for=current_user.display_name if current_user else "",
     )

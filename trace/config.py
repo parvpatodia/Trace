@@ -16,14 +16,15 @@ class Settings(BaseSettings):
     anthropic_api_key: str
     anthropic_model: str = "claude-sonnet-4-6-20251001"
 
-    apify_api_token: str
-    reddit_client_id: str
-    reddit_client_secret: str
+    apify_api_token: str = ""
+    reddit_client_id: str = ""
+    reddit_client_secret: str = ""
     reddit_user_agent: str = "trace/0.1.0"
 
-    scalekit_env_url: str
-    scalekit_client_id: str
-    scalekit_client_secret: str
+    scalekit_env_url: str | None = None
+    scalekit_client_id: str | None = None
+    scalekit_client_secret: str | None = None
+    auth_callback_url: str = "http://localhost:8000/auth/callback"
 
     database_url: str = "sqlite+aiosqlite:///./trace_data.db"
 
