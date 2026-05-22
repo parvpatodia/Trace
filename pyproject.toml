@@ -56,6 +56,10 @@ markers = [
     "integration: requires real API keys, skipped in CI",
     "smoke: full pipeline with mocks",
 ]
+filterwarnings = [
+    # PyMuPDF SWIG C-extension bindings emit these on import — not our code.
+    "ignore::DeprecationWarning:importlib",
+]
 
 [tool.coverage.run]
 omit = [
