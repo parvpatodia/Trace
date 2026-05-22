@@ -160,6 +160,9 @@ class TracePipeline:
         graph: CuriosityGraph = state["graph"]
         errors: list[str] = list(state.get("errors", []))
 
+        if not graph.topics:
+            return {"articles": [], "errors": errors}
+
         topics = list(graph.top_n(len(graph.topics)))
         tasks = [
             scraper.scrape(topic)
