@@ -48,12 +48,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from trace.models import RawSignal, SignalSource
 from trace.signals.base import SignalCollectionError, SignalCollector
+
+_log = logging.getLogger(__name__)
+_MAX_FILE_BYTES = 100 * 1024 * 1024  # 100 MB
 
 _MIN_CONTENT_LENGTH: int = 10
 
@@ -92,6 +96,15 @@ class ChatGPTExportCollector(SignalCollector):
                 self.source,
                 f"conversations.json not found: {self._path}",
             )
+        size = self._path.stat().st_size
+        if size > _MAX_FILE_BYTES:
+            raise SignalCollectionError(
+                self.source,
+                f"conversations.json is too large ({size / 1024 / 1024:.1f} MB). "
+                f"Maximum supported size is 100 MB. "
+                f"Export a smaller date range from ChatGPT.",
+            )
+        _log.info("Loading conversations.json (%.1f MB)", size / 1024 / 1024)
         try:
             raw = await asyncio.to_thread(self._path.read_text, encoding="utf-8")
             conversations: list[dict[str, Any]] = json.loads(raw)
@@ -112,6 +125,7 @@ class ChatGPTExportCollector(SignalCollector):
             if not isinstance(convo, dict):
                 continue
             signals.extend(self._extract_from_conversation(convo))
+        _log.info("Collected %d signal(s) from conversations.json (%d conversation(s))", len(signals), len(conversations))
         return signals
 
     def _extract_from_conversation(

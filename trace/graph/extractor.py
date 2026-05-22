@@ -44,12 +44,15 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
+import logging
 from typing import Any, TypedDict
 
 import anthropic
 
 from trace.models import RawSignal
+from trace.utils import strip_markdown_fence
+
+_log = logging.getLogger(__name__)
 
 
 class RawTopicData(TypedDict):
@@ -91,16 +94,6 @@ Respond ONLY with a valid JSON array in this exact format (no prose, no markdown
 If no topics are found, respond with an empty array: []"""
 
 
-_FENCE_RE = re.compile(r"^```[a-zA-Z]*\n?(.*?)\n?```$", re.DOTALL)
-
-
-def _strip_markdown_fence(text: str) -> str:
-    """Remove markdown code fences Claude sometimes wraps JSON responses in."""
-    stripped = text.strip()
-    m = _FENCE_RE.match(stripped)
-    return m.group(1).strip() if m else stripped
-
-
 class TopicExtractor:
     """
     Extracts curiosity topics from a list of RawSignals using Claude.
@@ -139,13 +132,17 @@ class TopicExtractor:
             signals[i : i + self._batch_size]
             for i in range(0, len(signals), self._batch_size)
         ]
+        _log.info("Extracting topics from %d signals in %d batch(es)", len(signals), len(batches))
 
         all_raw: list[RawTopicData] = []
-        for batch in batches:
+        for i, batch in enumerate(batches):
+            _log.debug("Processing batch %d/%d (%d signals)", i + 1, len(batches), len(batch))
             batch_topics = await asyncio.to_thread(self._call_api, batch, valid_ids)
             all_raw.extend(batch_topics)
 
-        return self._merge_topics(all_raw)
+        merged = self._merge_topics(all_raw)
+        _log.info("Extracted %d unique topic(s)", len(merged))
+        return merged
 
     def _call_api(
         self, batch: list[RawSignal], valid_ids: frozenset[str]
@@ -175,13 +172,18 @@ class TopicExtractor:
         except anthropic.APIError as e:
             raise TopicExtractionError(f"Claude API error: {e}") from e
 
+        if not response.content or not hasattr(response.content[0], "text"):
+            raise TopicExtractionError(
+                f"Unexpected Claude response format — empty or non-text content: "
+                f"{response.content!r}"
+            )
         raw_text: str = response.content[0].text
         return self._parse_response(raw_text, valid_ids)
 
     def _parse_response(
         self, text: str, valid_ids: frozenset[str]
     ) -> list[RawTopicData]:
-        text = _strip_markdown_fence(text)
+        text = strip_markdown_fence(text)
         try:
             parsed: Any = json.loads(text)
         except json.JSONDecodeError as e:
@@ -206,6 +208,12 @@ class TopicExtractor:
             # Filter out signal IDs Claude hallucinated (not in our batch)
             filtered_ids = [sid for sid in signal_ids if sid in valid_ids]
             if not filtered_ids:
+                _log.warning(
+                    "Discarding topic %r — all %d signal_id(s) not found in batch "
+                    "(hallucinated by Claude)",
+                    name,
+                    len(signal_ids),
+                )
                 continue
 
             topics.append(

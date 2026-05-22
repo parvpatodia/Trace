@@ -41,12 +41,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from trace.models import RawSignal, SignalSource
 from trace.signals.base import SignalCollectionError, SignalCollector
+
+_log = logging.getLogger(__name__)
+_MAX_FILE_BYTES = 100 * 1024 * 1024  # 100 MB
 
 
 class GoogleTakeoutCollector(SignalCollector):
@@ -94,6 +98,15 @@ class GoogleTakeoutCollector(SignalCollector):
                 self.source,
                 f"BrowserHistory.json not found: {self._path}",
             )
+        size = self._path.stat().st_size
+        if size > _MAX_FILE_BYTES:
+            raise SignalCollectionError(
+                self.source,
+                f"BrowserHistory.json is too large ({size / 1024 / 1024:.1f} MB). "
+                f"Maximum supported size is 100 MB. "
+                f"Export a smaller date range from Google Takeout.",
+            )
+        _log.info("Loading BrowserHistory.json (%.1f MB)", size / 1024 / 1024)
         try:
             raw = await asyncio.to_thread(self._path.read_text, encoding="utf-8")
             data: dict[str, Any] = json.loads(raw)
@@ -115,6 +128,7 @@ class GoogleTakeoutCollector(SignalCollector):
             signal = self._parse_entry(entry)
             if signal is not None:
                 signals.append(signal)
+        _log.info("Collected %d signal(s) from BrowserHistory.json (%d raw entries)", len(signals), len(entries))
         return signals
 
     def _parse_entry(self, entry: dict[str, Any]) -> RawSignal | None:

@@ -40,6 +40,7 @@ WHY skip empty / whitespace-only content:
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,6 +48,8 @@ from typing import Any
 
 from trace.models import RawSignal, SignalSource
 from trace.signals.base import SignalCollectionError, SignalCollector
+
+_log = logging.getLogger(__name__)
 
 _SUPPORTED_SUFFIXES: frozenset[str] = frozenset({".txt", ".md", ".pdf"})
 _DEFAULT_PATTERNS: list[str] = ["**/*"]
@@ -155,7 +158,12 @@ class FileSystemCollector(SignalCollector):
     def _read_pdf(self, path: Path) -> str | None:
         try:
             import fitz  # PyMuPDF
-
+        except ImportError:
+            _log.debug(
+                "Skipping %s — PyMuPDF not installed (pip install pymupdf)", path.name
+            )
+            return None
+        try:
             doc = fitz.open(path)
             pages: list[str] = []
             for page in doc:
@@ -164,8 +172,8 @@ class FileSystemCollector(SignalCollector):
                     pages.append(page_text)
             doc.close()
             return "\n".join(pages) if pages else None
-        except Exception:
-            # Corrupt PDFs, encrypted PDFs, import errors — all skipped silently.
+        except Exception as exc:
+            _log.warning("Skipping %s — PDF read error: %s", path.name, exc)
             return None
 
     def _build_metadata(

@@ -31,11 +31,14 @@ Scoring rationale:
 
 from __future__ import annotations
 
+import logging
 import math
 from datetime import datetime, timezone
 
 from trace.graph.extractor import RawTopicData, TopicExtractor
 from trace.models import CuriosityGraph, CuriosityType, RawSignal, SignalSource, Topic
+
+_log = logging.getLogger(__name__)
 
 _DEFAULT_HALF_LIFE_DAYS: int = 14
 _DEFAULT_DEBT_THRESHOLD_DAYS: int = 7
@@ -108,7 +111,13 @@ class CuriosityGraphBuilder:
             topic = self._score_topic(raw, signals_by_id, _now)
             if topic is not None:
                 scored.append(topic)
+                _log.debug(
+                    "Scored topic '%s': freq=%d recency=%.2f debt=%.2f type=%s",
+                    topic.name, topic.frequency, topic.recency_score,
+                    topic.debt_score, topic.curiosity_type.value,
+                )
 
+        _log.info("Graph built: %d topic(s) from %d signal(s)", len(scored), signal_count)
         return CuriosityGraph(
             topics=tuple(scored),
             signal_count=signal_count,

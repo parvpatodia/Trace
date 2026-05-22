@@ -29,8 +29,11 @@ WHY builder owns the extractor, not the pipeline:
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, timezone
 from typing import Any, TypedDict
+
+_log = logging.getLogger(__name__)
 
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, ConfigDict
@@ -136,6 +139,7 @@ class TracePipeline:
     # ── Node implementations ────────────────────────────────────────────────
 
     async def _node_collect_signals(self, state: _State) -> dict:
+        _log.info("collect_signals: running %d collector(s)", len(self._collectors))
         tasks = [c.collect() for c in self._collectors]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -146,21 +150,26 @@ class TracePipeline:
                 errors.append(
                     f"[{collector.source.value}] collection failed: {result}"
                 )
+                _log.warning("Collector %s failed: %s", collector.source.value, result)
             else:
                 signals.extend(result)
+                _log.debug("Collector %s yielded %d signal(s)", collector.source.value, len(result))
 
         if not signals:
             raise PipelineError(
                 "No signals collected from any source — cannot build graph"
             )
 
+        _log.info("collect_signals: %d total signal(s) collected", len(signals))
         return {"signals": signals, "errors": errors}
 
     async def _node_build_graph(self, state: _State) -> dict:
+        _log.info("build_graph: building curiosity graph from %d signal(s)", len(state["signals"]))
         try:
             graph = await self._builder.build(state["signals"])
         except Exception as e:
             raise PipelineError(f"Failed to build curiosity graph: {e}") from e
+        _log.info("build_graph: %d topic(s) scored", len(graph.topics))
         return {"graph": graph}
 
     async def _node_scrape_articles(self, state: _State) -> dict:
@@ -168,9 +177,11 @@ class TracePipeline:
         errors: list[str] = list(state.get("errors", []))
 
         if not graph.topics:
+            _log.info("scrape_articles: no topics in graph — skipping")
             return {"articles": [], "errors": errors}
 
         topics = list(graph.top_n(len(graph.topics)))
+        _log.info("scrape_articles: %d topic(s) × %d scraper(s)", len(topics), len(self._scrapers))
         semaphore = asyncio.Semaphore(self._max_concurrent_scrapers)
 
         async def _scrape_limited(scraper: ArticleScraper, topic: Topic) -> list[ScrapedArticle]:
@@ -196,9 +207,11 @@ class TracePipeline:
                 errors.append(
                     f"scraper [{source.value}] failed for topic '{topic.name}': {result}"
                 )
+                _log.warning("Scraper %s failed for topic '%s': %s", source.value, topic.name, result)
             else:
                 articles.extend(result)
 
+        _log.info("scrape_articles: %d article(s) collected", len(articles))
         return {"articles": articles, "errors": errors}
 
     async def _node_assemble_context(self, state: _State) -> dict:
@@ -206,10 +219,12 @@ class TracePipeline:
         return {"context": ctx}
 
     async def _node_compose_newsletter(self, state: _State) -> dict:
+        _log.info("compose_newsletter: calling Claude")
         try:
             newsletter = await self._composer.compose(state["context"])
         except NewsletterGenerationError as e:
             raise PipelineError(f"Failed to compose newsletter: {e}") from e
+        _log.info("compose_newsletter: newsletter generated (%d section(s))", len(newsletter.sections))
         return {"newsletter": newsletter}
 
     # ── Public interface ────────────────────────────────────────────────────

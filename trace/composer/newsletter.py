@@ -34,7 +34,7 @@ from __future__ import annotations
 import asyncio
 import html as _html
 import json
-import re
+import logging
 import textwrap
 from datetime import datetime, timezone
 from typing import Any
@@ -44,6 +44,9 @@ from pydantic import ValidationError
 
 from trace.composer.assembler import AssemblyContext
 from trace.models import Newsletter, NewsletterSection
+from trace.utils import strip_markdown_fence
+
+_log = logging.getLogger(__name__)
 
 _DEFAULT_MODEL = "claude-sonnet-4-6-20251001"
 _DEFAULT_MAX_TOKENS = 4096
@@ -136,6 +139,11 @@ class NewsletterComposer:
         except anthropic.APIError as e:
             raise NewsletterGenerationError(f"API error calling Claude: {e}") from e
 
+        if not response.content or not hasattr(response.content[0], "text"):
+            raise NewsletterGenerationError(
+                f"Unexpected Claude response format — empty or non-text content: "
+                f"{response.content!r}"
+            )
         return response.content[0].text
 
 
@@ -169,18 +177,8 @@ def _build_user_message(ctx: AssemblyContext) -> str:
     return json.dumps(payload, indent=2)
 
 
-_FENCE_RE = re.compile(r"^```[a-zA-Z]*\n?(.*?)\n?```$", re.DOTALL)
-
-
-def _strip_markdown_fence(text: str) -> str:
-    """Remove markdown code fences Claude sometimes wraps JSON responses in."""
-    stripped = text.strip()
-    m = _FENCE_RE.match(stripped)
-    return m.group(1).strip() if m else stripped
-
-
 def _parse_response(text: str) -> dict[str, Any]:
-    text = _strip_markdown_fence(text)
+    text = strip_markdown_fence(text)
     try:
         data = json.loads(text)
     except json.JSONDecodeError as e:
