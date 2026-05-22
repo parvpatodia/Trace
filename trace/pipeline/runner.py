@@ -38,10 +38,12 @@ _log = logging.getLogger(__name__)
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, ConfigDict
 
+from trace.audit.writer import AuditWriter
 from trace.composer.assembler import AssemblyContext, ContextWindowAssembler
 from trace.composer.newsletter import NewsletterComposer, NewsletterGenerationError
 from trace.graph.builder import CuriosityGraphBuilder
 from trace.models import (
+    AuditEntry,
     CuriosityGraph,
     Newsletter,
     RawSignal,
@@ -64,6 +66,8 @@ class PipelineResult(BaseModel):
     collected_signals: tuple[RawSignal, ...]
     errors: list[str]
     completed_at: datetime
+    user_id: str = ""
+    user_email: str = ""
 
 
 class _State(TypedDict):
@@ -95,6 +99,7 @@ class TracePipeline:
         assembler: ContextWindowAssembler,
         composer: NewsletterComposer,
         max_concurrent_scrapers: int = 5,
+        audit_writer: AuditWriter | None = None,
     ) -> None:
         if not collectors:
             raise ValueError("collectors must be a non-empty list")
@@ -115,6 +120,7 @@ class TracePipeline:
         self._assembler = assembler
         self._composer = composer
         self._max_concurrent_scrapers = max_concurrent_scrapers
+        self._audit_writer = audit_writer
         self._graph = self._build_graph()
 
     # ── LangGraph construction ──────────────────────────────────────────────
@@ -229,7 +235,11 @@ class TracePipeline:
 
     # ── Public interface ────────────────────────────────────────────────────
 
-    async def run(self) -> PipelineResult:
+    async def run(
+        self,
+        user_id: str = "",
+        user_email: str = "",
+    ) -> PipelineResult:
         initial: _State = {
             "signals": [],
             "graph": None,
@@ -239,10 +249,103 @@ class TracePipeline:
             "errors": [],
         }
         final = await self._graph.ainvoke(initial)
-        return PipelineResult(
+        result = PipelineResult(
             newsletter=final["newsletter"],
             graph=final["graph"],
             collected_signals=tuple(final["signals"]),
             errors=final["errors"],
             completed_at=datetime.now(timezone.utc),
+            user_id=user_id,
+            user_email=user_email,
+        )
+        if self._audit_writer is not None:
+            await self._write_audit_entries(final, result, user_id, user_email)
+        return result
+
+    async def _write_audit_entries(
+        self,
+        final: dict,
+        result: PipelineResult,
+        user_id: str,
+        user_email: str,
+    ) -> None:
+        """Write one AuditEntry per pipeline stage after a successful run."""
+        on_behalf = user_email or user_id or "anonymous"
+        signals: list[RawSignal] = final.get("signals", [])
+        graph: CuriosityGraph = final["graph"]
+        articles: list[ScrapedArticle] = final.get("articles", [])
+        newsletter = result.newsletter
+
+        # 1 — Signal collection
+        sources: dict[str, int] = {}
+        for sig in signals:
+            sources[sig.source.value] = sources.get(sig.source.value, 0) + 1
+        await self._audit_writer.record(  # type: ignore[union-attr]
+            AuditEntry(
+                pipeline_step="collect_signals",
+                decision=f"Collected {len(signals)} signal(s) across {len(sources)} source(s)",
+                reasoning=(
+                    f"Running on behalf of {on_behalf}. "
+                    "Signals represent the user's digital curiosity footprint."
+                ),
+                inputs_summary={"sources_active": list(sources.keys())},
+                outputs_summary={"signal_count": len(signals), "by_source": sources},
+            )
+        )
+
+        # 2 — Graph building
+        topic_summaries = [
+            {
+                "name": t.name,
+                "frequency": t.frequency,
+                "recency_score": round(t.recency_score, 3),
+                "type": t.curiosity_type.value,
+            }
+            for t in graph.topics
+        ]
+        await self._audit_writer.record(  # type: ignore[union-attr]
+            AuditEntry(
+                pipeline_step="build_graph",
+                decision=f"Identified {len(graph.topics)} curiosity topic(s) from {len(signals)} signal(s)",
+                reasoning="Claude extracted topics by clustering semantically related signals. "
+                          "Topics with higher frequency and recency float to the top.",
+                inputs_summary={"signal_count": len(signals)},
+                outputs_summary={"topic_count": len(graph.topics), "topics": topic_summaries},
+            )
+        )
+
+        # 3 — Article scraping
+        await self._audit_writer.record(  # type: ignore[union-attr]
+            AuditEntry(
+                pipeline_step="scrape_articles",
+                decision=f"Scraped {len(articles)} article(s) across {len(self._scrapers)} source(s)",
+                reasoning="Articles provide fresh, relevant content for each curiosity topic.",
+                inputs_summary={"topic_count": len(graph.topics), "scraper_count": len(self._scrapers)},
+                outputs_summary={"article_count": len(articles), "errors": result.errors},
+            )
+        )
+
+        # 4 — Newsletter composition
+        section_summaries = [
+            {
+                "title": s.title,
+                "type": s.section_type,
+                "audit_reasoning": s.audit_reasoning,
+            }
+            for s in newsletter.sections
+        ]
+        await self._audit_writer.record(  # type: ignore[union-attr]
+            AuditEntry(
+                pipeline_step="compose_newsletter",
+                decision=f"Generated newsletter '{newsletter.subject_line}' with {len(newsletter.sections)} section(s)",
+                reasoning=(
+                    f"Claude composed a personalized newsletter for {on_behalf} "
+                    "based on their curiosity graph and scraped articles."
+                ),
+                inputs_summary={"topic_count": len(graph.topics), "article_count": len(articles)},
+                outputs_summary={
+                    "subject_line": newsletter.subject_line,
+                    "sections": section_summaries,
+                },
+            )
         )

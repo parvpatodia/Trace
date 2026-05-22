@@ -33,6 +33,7 @@ class ContentSource(str, Enum):
     REDDIT = "reddit"
     BLOG = "blog"
     YOUTUBE = "youtube"
+    WEB_SEARCH = "web_search"
 
 
 class RawSignal(BaseModel):

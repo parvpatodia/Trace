@@ -404,3 +404,28 @@ class TestReturnTypeContract:
         result = await TopicExtractor(client, batch_size=50).extract([sig])
         for item in result:
             assert "signal_ids" in item
+
+
+# ── Response content guard ────────────────────────────────────────────────────
+
+class TestResponseContentGuard:
+    async def test_empty_response_content_raises_extraction_error(self) -> None:
+        client = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.content = []
+        client.messages.create.return_value = mock_resp
+
+        signals = make_signals(2)
+        with pytest.raises(TopicExtractionError, match="Unexpected Claude response format"):
+            await TopicExtractor(client=client).extract(signals)
+
+    async def test_non_text_response_block_raises_extraction_error(self) -> None:
+        client = MagicMock()
+        mock_resp = MagicMock()
+        non_text_block = MagicMock(spec=[])  # spec=[] → no attributes → hasattr(block, "text") is False
+        mock_resp.content = [non_text_block]
+        client.messages.create.return_value = mock_resp
+
+        signals = make_signals(2)
+        with pytest.raises(TopicExtractionError, match="Unexpected Claude response format"):
+            await TopicExtractor(client=client).extract(signals)

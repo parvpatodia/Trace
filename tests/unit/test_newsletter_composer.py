@@ -383,3 +383,28 @@ class TestImmutability:
         result = await NewsletterComposer(client=make_mock_client()).compose(ctx)
         with pytest.raises(Exception):
             result.subject_line = "mutated"  # type: ignore[misc]
+
+
+# ── Response content guard ────────────────────────────────────────────────────
+
+class TestResponseContentGuard:
+    async def test_empty_response_content_raises_generation_error(self) -> None:
+        client = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.content = []
+        client.messages.create.return_value = mock_resp
+
+        ctx = make_assembly_context()
+        with pytest.raises(NewsletterGenerationError, match="Unexpected Claude response format"):
+            await NewsletterComposer(client=client).compose(ctx)
+
+    async def test_non_text_response_block_raises_generation_error(self) -> None:
+        client = MagicMock()
+        mock_resp = MagicMock()
+        non_text_block = MagicMock(spec=[])  # spec=[] means no attributes → hasattr returns False
+        mock_resp.content = [non_text_block]
+        client.messages.create.return_value = mock_resp
+
+        ctx = make_assembly_context()
+        with pytest.raises(NewsletterGenerationError, match="Unexpected Claude response format"):
+            await NewsletterComposer(client=client).compose(ctx)

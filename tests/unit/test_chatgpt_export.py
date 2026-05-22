@@ -559,3 +559,43 @@ class TestErrorCases:
         with pytest.raises(SignalCollectionError) as exc_info:
             await ChatGPTExportCollector(path).collect()
         assert "must be a JSON array" in str(exc_info.value)
+
+
+# ── File size guard ───────────────────────────────────────────────────────────
+
+class TestFileSizeGuard:
+    async def test_file_too_large_raises_signal_collection_error(
+        self, tmp_path: Path
+    ) -> None:
+        from unittest.mock import MagicMock, patch
+
+        path = tmp_path / "conversations.json"
+        path.write_text("[]", encoding="utf-8")
+        collector = ChatGPTExportCollector(path)
+        mock_stat = MagicMock()
+        mock_stat.st_size = 200 * 1024 * 1024  # 200 MB
+        with patch("pathlib.Path.stat", return_value=mock_stat):
+            with pytest.raises(SignalCollectionError, match="too large"):
+                await collector.collect()
+
+    async def test_file_at_limit_is_accepted(self, tmp_path: Path) -> None:
+        from unittest.mock import MagicMock, patch
+
+        path = tmp_path / "conversations.json"
+        path.write_text("[]", encoding="utf-8")
+        collector = ChatGPTExportCollector(path)
+        mock_stat = MagicMock()
+        mock_stat.st_size = 100 * 1024 * 1024  # exactly 100 MB
+        with patch("pathlib.Path.stat", return_value=mock_stat):
+            signals = await collector.collect()
+        assert signals == []
+
+    async def test_file_under_limit_proceeds_normally(self, tmp_path: Path) -> None:
+        path = tmp_path / "conversations.json"
+        mapping = make_user_node("What is RLHF in machine learning?")
+        path.write_text(
+            json.dumps([make_conversation(mapping)]), encoding="utf-8"
+        )
+        collector = ChatGPTExportCollector(path)
+        signals = await collector.collect()
+        assert len(signals) >= 1

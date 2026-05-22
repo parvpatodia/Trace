@@ -423,3 +423,30 @@ class TestReturnTypeContract:
         signals = await FileSystemCollector(tmp_path).collect()
         for s in signals:
             assert s.timestamp.tzinfo is not None
+
+
+# ── PDF error handling ────────────────────────────────────────────────────────
+
+class TestPdfErrorHandling:
+    async def test_corrupt_pdf_bytes_skipped_gracefully(self, tmp_path: Path) -> None:
+        """fitz.open() on non-PDF bytes raises; collector must skip silently."""
+        (tmp_path / "corrupt.pdf").write_bytes(b"not a real pdf file at all")
+        # Even if fitz is installed, this should not raise — corrupt file is skipped.
+        collector = FileSystemCollector(root_dir=tmp_path)
+        signals = await collector.collect()
+        filenames = [s.metadata.get("filename") for s in signals]
+        assert "corrupt.pdf" not in filenames
+
+    async def test_fitz_not_installed_pdf_skipped(self, tmp_path: Path) -> None:
+        """When PyMuPDF is absent, PDF files produce no signal (not an error)."""
+        import sys
+        from unittest.mock import patch
+
+        (tmp_path / "paper.pdf").write_bytes(b"%PDF-1.4 fake content")
+        collector = FileSystemCollector(root_dir=tmp_path)
+
+        with patch.dict("sys.modules", {"fitz": None}):
+            signals = await collector.collect()
+
+        filenames = [s.metadata.get("filename") for s in signals]
+        assert "paper.pdf" not in filenames

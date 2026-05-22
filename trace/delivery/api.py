@@ -112,11 +112,12 @@ def _build_pipeline_from_settings() -> TracePipeline | None:
         import anthropic
         import praw
 
+        from trace.audit.writer import AuditWriter
         from trace.composer.assembler import ContextWindowAssembler
         from trace.composer.newsletter import NewsletterComposer
-        from trace.config import get_settings
         from trace.graph.builder import CuriosityGraphBuilder
         from trace.graph.extractor import TopicExtractor
+        from trace.scraper.apify import ApifyScraper
         from trace.scraper.arxiv import ArXivScraper
         from trace.scraper.hackernews import HackerNewsScraper
         from trace.scraper.reddit import RedditSearchScraper
@@ -142,6 +143,9 @@ def _build_pipeline_from_settings() -> TracePipeline | None:
             )
             scrapers.append(RedditSearchScraper(reddit_client=reddit))
 
+        if settings.apify_api_token:
+            scrapers.append(ApifyScraper(api_token=settings.apify_api_token))
+
         extractor = TopicExtractor(client=anthropic_client, model=settings.anthropic_model)
         builder = CuriosityGraphBuilder(
             extractor=extractor,
@@ -157,6 +161,7 @@ def _build_pipeline_from_settings() -> TracePipeline | None:
             client=anthropic_client,
             model=settings.anthropic_model,
         )
+        audit_writer = AuditWriter(path=settings.audit_log_path)
         return TracePipeline(
             collectors=collectors,
             scrapers=scrapers,
@@ -164,6 +169,7 @@ def _build_pipeline_from_settings() -> TracePipeline | None:
             assembler=assembler,
             composer=composer,
             max_concurrent_scrapers=settings.scraper_max_concurrent,
+            audit_writer=audit_writer,
         )
     except Exception:
         return None
@@ -333,7 +339,10 @@ async def generate_newsletter(
     specific user rather than a generic service account.
     """
     try:
-        result: PipelineResult = await pipeline.run()
+        result: PipelineResult = await pipeline.run(
+            user_id=current_user.user_id if current_user else "",
+            user_email=current_user.email if current_user else "",
+        )
     except PipelineError as e:
         raise HTTPException(status_code=503, detail=str(e))
 

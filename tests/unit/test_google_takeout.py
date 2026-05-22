@@ -374,3 +374,43 @@ class TestErrorCases:
         # Should not raise; non-dict entries yield None from _parse_entry
         signals = await GoogleTakeoutCollector(path).collect()
         assert len(signals) == 1
+
+
+# ── File size guard ───────────────────────────────────────────────────────────
+
+class TestFileSizeGuard:
+    async def test_file_too_large_raises_signal_collection_error(
+        self, tmp_path: Path
+    ) -> None:
+        from unittest.mock import MagicMock, patch
+
+        path = tmp_path / "BrowserHistory.json"
+        path.write_text('{"Browser History": []}', encoding="utf-8")
+        collector = GoogleTakeoutCollector(path)
+        mock_stat = MagicMock()
+        mock_stat.st_size = 200 * 1024 * 1024  # 200 MB
+        with patch("pathlib.Path.stat", return_value=mock_stat):
+            with pytest.raises(SignalCollectionError, match="too large"):
+                await collector.collect()
+
+    async def test_file_at_limit_is_accepted(self, tmp_path: Path) -> None:
+        from unittest.mock import MagicMock, patch
+
+        path = tmp_path / "BrowserHistory.json"
+        path.write_text('{"Browser History": []}', encoding="utf-8")
+        collector = GoogleTakeoutCollector(path)
+        mock_stat = MagicMock()
+        mock_stat.st_size = 100 * 1024 * 1024  # exactly 100 MB
+        with patch("pathlib.Path.stat", return_value=mock_stat):
+            # Should not raise — limit is strictly greater than 100 MB
+            signals = await collector.collect()
+        assert signals == []
+
+    async def test_file_under_limit_proceeds_normally(self, tmp_path: Path) -> None:
+        path = tmp_path / "BrowserHistory.json"
+        path.write_text(
+            json.dumps({"Browser History": [valid_entry()]}), encoding="utf-8"
+        )
+        collector = GoogleTakeoutCollector(path)
+        signals = await collector.collect()
+        assert len(signals) == 1
