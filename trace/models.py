@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 class SignalSource(str, Enum):
     CHROME_HISTORY = "chrome_history"
     GOOGLE_TAKEOUT = "google_takeout"
+    YOUTUBE_TAKEOUT = "youtube_takeout"
     REDDIT_POST = "reddit_post"
     REDDIT_COMMENT = "reddit_comment"
     REDDIT_SAVED = "reddit_saved"

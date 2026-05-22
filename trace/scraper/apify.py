@@ -43,7 +43,7 @@ from trace.models import ContentSource, ScrapedArticle, Topic
 from trace.scraper.base import ArticleScraper, ScraperError
 
 _log = logging.getLogger(__name__)
-_DEFAULT_ACTOR = "apify/bing-search-scraper"
+_DEFAULT_ACTOR = "tri_angle/bing-search-scraper"
 
 
 class ApifyScraper(ArticleScraper):

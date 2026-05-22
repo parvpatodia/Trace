@@ -120,12 +120,14 @@ async def lifespan(application: FastAPI):
 def _build_pipeline_from_settings(
     override_history_path: Path | None = None,
     override_chatgpt_path: Path | None = None,
+    override_youtube_path: Path | None = None,
 ) -> TracePipeline | None:
     """
     Construct a fully-wired TracePipeline from environment settings.
 
     override_history_path: use this BrowserHistory.json instead of the configured one.
     override_chatgpt_path: use this conversations.json instead of the configured one.
+    override_youtube_path: use this watch-history.json instead of the configured one.
 
     Returns None if required settings are missing (dev/test mode).
     """
@@ -163,6 +165,12 @@ def _build_pipeline_from_settings(
             collectors.append(ChatGPTExportCollector(export_path=chatgpt_path))
             _log.info("ChatGPT export collector active: %s", chatgpt_path)
 
+        yt_path = override_youtube_path or settings.youtube_watch_history_path
+        if yt_path and yt_path.exists():
+            from trace.signals.youtube_takeout import YouTubeWatchHistoryCollector
+            collectors.append(YouTubeWatchHistoryCollector(history_path=yt_path))
+            _log.info("YouTube watch history collector active: %s", yt_path)
+
         if settings.filesystem_root_dir and settings.filesystem_root_dir.exists():
             from trace.signals.filesystem import FileSystemCollector
             collectors.append(FileSystemCollector(root_dir=settings.filesystem_root_dir))
@@ -198,8 +206,11 @@ def _build_pipeline_from_settings(
         if settings.apify_api_token:
             try:
                 from trace.scraper.apify import ApifyScraper
-                scrapers.append(ApifyScraper(api_token=settings.apify_api_token))
-                _log.info("Apify scraper active")
+                scrapers.append(ApifyScraper(
+                    api_token=settings.apify_api_token,
+                    actor_id=settings.apify_actor_id,
+                ))
+                _log.info("Apify scraper active (actor: %s)", settings.apify_actor_id)
             except Exception as exc:
                 _log.warning("Apify scraper skipped: %s", exc)
 
@@ -492,15 +503,19 @@ _FRONTEND_HTML = """<!DOCTYPE html>
 
   <div class="card">
     <div class="tabs">
-      <div class="tab active" onclick="switchTab('google')">Google Takeout</div>
+      <div class="tab active" onclick="switchTab('google')">Chrome History</div>
+      <div class="tab" onclick="switchTab('youtube')">YouTube History</div>
       <div class="tab" onclick="switchTab('chatgpt')">ChatGPT Export</div>
     </div>
+    <p style="font-size:0.78rem;color:var(--muted);margin-bottom:1rem">
+      Upload one or more — the more signals, the more accurate your curiosity profile.
+    </p>
 
     <div id="tab-google" class="tab-content active">
       <div class="instructions">
         <ol>
           <li>Go to <strong>takeout.google.com</strong></li>
-          <li>Deselect all, then select only <code>Chrome</code></li>
+          <li>Deselect all → select only <code>Chrome</code></li>
           <li>Export → Download → extract the ZIP</li>
           <li>Find <code>BrowserHistory.json</code> and upload it below</li>
         </ol>
@@ -511,6 +526,29 @@ _FRONTEND_HTML = """<!DOCTYPE html>
         <strong>Drop BrowserHistory.json here</strong>
         <p>or click to browse</p>
         <div class="file-chosen" id="chosen-google"></div>
+      </label>
+    </div>
+
+    <div id="tab-youtube" class="tab-content">
+      <div class="instructions">
+        <ol>
+          <li>Go to <strong>takeout.google.com</strong></li>
+          <li>Deselect all → select <code>YouTube and YouTube Music</code></li>
+          <li>Export → Download → extract the ZIP</li>
+          <li>Find <code>Takeout/YouTube and YouTube Music/history/watch-history.json</code></li>
+          <li>Upload it below</li>
+        </ol>
+        <p style="margin-top:0.5rem">
+          Rewatched videos signal deeper interest — if you opened the same lecture 3+ times,
+          Trace flags it as a curiosity you're stuck on and prioritises related content.
+        </p>
+      </div>
+      <label class="upload-area" id="drop-youtube">
+        <input type="file" id="file-youtube" accept=".json" onchange="fileChosen('youtube')">
+        <div class="upload-icon">▶️</div>
+        <strong>Drop watch-history.json here</strong>
+        <p>or click to browse</p>
+        <div class="file-chosen" id="chosen-youtube"></div>
       </label>
     </div>
 
@@ -556,11 +594,13 @@ let activeTab = 'google';
 
 function switchTab(tab) {
   activeTab = tab;
+  const tabs = ['google','youtube','chatgpt'];
   document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', (i === 0 && tab === 'google') || (i === 1 && tab === 'chatgpt'));
+    t.classList.toggle('active', tabs[i] === tab);
   });
-  document.getElementById('tab-google').classList.toggle('active', tab === 'google');
-  document.getElementById('tab-chatgpt').classList.toggle('active', tab === 'chatgpt');
+  tabs.forEach(id => {
+    document.getElementById('tab-' + id).classList.toggle('active', id === tab);
+  });
 }
 
 function fileChosen(type) {
@@ -569,7 +609,7 @@ function fileChosen(type) {
 }
 
 // Drag-and-drop
-['google','chatgpt'].forEach(t => {
+['google','youtube','chatgpt'].forEach(t => {
   const el = document.getElementById('drop-' + t);
   el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
   el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
@@ -661,10 +701,11 @@ function renderNewsletter(data) {
 }
 
 async function generate() {
-  const fileGoogle = document.getElementById('file-google').files[0];
+  const fileGoogle  = document.getElementById('file-google').files[0];
+  const fileYoutube = document.getElementById('file-youtube').files[0];
   const fileChatgpt = document.getElementById('file-chatgpt').files[0];
 
-  if (!fileGoogle && !fileChatgpt) {
+  if (!fileGoogle && !fileYoutube && !fileChatgpt) {
     setStatus('Please upload at least one file first.', true);
     return;
   }
@@ -675,16 +716,23 @@ async function generate() {
   tickStage();
 
   try {
-    // Upload file(s) first
-    let historyUploadId = null, chatgptUploadId = null;
+    let historyUploadId = null, youtubeUploadId = null, chatgptUploadId = null;
 
     if (fileGoogle) {
       const fd = new FormData();
       fd.append('file', fileGoogle);
       const r = await fetch('/upload', { method: 'POST', body: fd });
       if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Upload failed'); }
-      const d = await r.json();
-      historyUploadId = d.upload_id;
+      historyUploadId = (await r.json()).upload_id;
+    }
+
+    if (fileYoutube) {
+      const fd = new FormData();
+      fd.append('file', fileYoutube);
+      fd.append('file_type', 'youtube');
+      const r = await fetch('/upload', { method: 'POST', body: fd });
+      if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Upload failed'); }
+      youtubeUploadId = (await r.json()).upload_id;
     }
 
     if (fileChatgpt) {
@@ -693,13 +741,12 @@ async function generate() {
       fd.append('file_type', 'chatgpt');
       const r = await fetch('/upload', { method: 'POST', body: fd });
       if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Upload failed'); }
-      const d = await r.json();
-      chatgptUploadId = d.upload_id;
+      chatgptUploadId = (await r.json()).upload_id;
     }
 
-    // Generate newsletter from uploaded files
     const body = {};
     if (historyUploadId) body.history_upload_id = historyUploadId;
+    if (youtubeUploadId) body.youtube_upload_id = youtubeUploadId;
     if (chatgptUploadId) body.chatgpt_upload_id = chatgptUploadId;
 
     const r2 = await fetch('/newsletter/from-upload', {
@@ -743,10 +790,14 @@ async def upload_file(
     file_type: str = "auto",
 ) -> UploadResponse:
     """
-    Upload a signal source file (BrowserHistory.json or conversations.json).
-    Returns an upload_id to reference in /newsletter/from-upload.
+    Upload a signal source file. Returns an upload_id for /newsletter/from-upload.
 
-    file_type: "auto" (detect by filename), "history", or "chatgpt"
+    Accepted files:
+      BrowserHistory.json  — Google Takeout Chrome history
+      watch-history.json   — Google Takeout YouTube watch history
+      conversations.json   — ChatGPT data export
+
+    file_type: "auto" (detect by filename), "history", "youtube", or "chatgpt"
     """
     settings = get_settings()
     upload_dir = settings.upload_dir
@@ -761,21 +812,33 @@ async def upload_file(
             detail=f"File too large ({size / 1024 / 1024:.1f} MB). Maximum is 100 MB.",
         )
 
-    if not content.strip().startswith(b"{") and not content.strip().startswith(b"["):
+    stripped = content.strip()
+    if not stripped.startswith(b"{") and not stripped.startswith(b"["):
         raise HTTPException(status_code=400, detail="File must be valid JSON")
+
+    # Basic JSON depth/structure guard — reject obviously malformed payloads
+    try:
+        import json as _json
+        _json.loads(content)
+    except (ValueError, MemoryError):
+        raise HTTPException(status_code=400, detail="File is not valid JSON")
 
     upload_id = str(uuid.uuid4())
     fname = file.filename or "upload.json"
 
-    # Detect file type if auto
+    # Detect file type from filename when set to auto
     detected_type = file_type
     if file_type == "auto":
-        if "BrowserHistory" in fname or "browser" in fname.lower():
+        fname_lower = fname.lower()
+        if "browserhistory" in fname_lower or "browser_history" in fname_lower:
             detected_type = "history"
-        elif "conversation" in fname.lower():
+        elif "watch" in fname_lower or "youtube" in fname_lower:
+            detected_type = "youtube"
+        elif "conversation" in fname_lower:
             detected_type = "chatgpt"
         else:
-            detected_type = "history"
+            # Heuristic: YouTube watch-history is always a JSON array
+            detected_type = "youtube" if stripped.startswith(b"[") else "history"
 
     # Save with type prefix so pipeline knows how to load it
     save_path = upload_dir / f"{detected_type}_{upload_id}.json"
@@ -793,6 +856,7 @@ async def upload_file(
 class FromUploadRequest(BaseModel):
     history_upload_id: str | None = None
     chatgpt_upload_id: str | None = None
+    youtube_upload_id: str | None = None
 
 
 @app.post("/newsletter/from-upload", response_model=GenerateResponse)
@@ -806,7 +870,7 @@ async def generate_from_upload(
     the individual's actual browsing/conversation history.
     """
     # Validate inputs before touching settings (settings may be unavailable in some envs)
-    if not body.history_upload_id and not body.chatgpt_upload_id:
+    if not body.history_upload_id and not body.chatgpt_upload_id and not body.youtube_upload_id:
         raise HTTPException(status_code=400, detail="Provide at least one upload ID")
 
     settings = get_settings()
@@ -814,6 +878,7 @@ async def generate_from_upload(
 
     history_path: Path | None = None
     chatgpt_path: Path | None = None
+    youtube_path: Path | None = None
 
     if body.history_upload_id:
         p = upload_dir / f"history_{body.history_upload_id}.json"
@@ -827,9 +892,16 @@ async def generate_from_upload(
             raise HTTPException(status_code=404, detail=f"Upload {body.chatgpt_upload_id} not found")
         chatgpt_path = p
 
+    if body.youtube_upload_id:
+        p = upload_dir / f"youtube_{body.youtube_upload_id}.json"
+        if not p.exists():
+            raise HTTPException(status_code=404, detail=f"Upload {body.youtube_upload_id} not found")
+        youtube_path = p
+
     pipeline = _build_pipeline_from_settings(
         override_history_path=history_path,
         override_chatgpt_path=chatgpt_path,
+        override_youtube_path=youtube_path,
     )
     if pipeline is None:
         raise HTTPException(
@@ -848,7 +920,7 @@ async def generate_from_upload(
         # Delete uploaded files immediately after pipeline use — they contain
         # sensitive personal data (browsing/conversation history) and must not
         # persist on the server longer than necessary.
-        for p in [history_path, chatgpt_path]:
+        for p in [history_path, chatgpt_path, youtube_path]:
             if p and p.exists():
                 try:
                     p.unlink()

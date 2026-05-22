@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-4-6-20251001"
 
     apify_api_token: str = ""
+    # Use a compute-unit-only actor (not a monthly-rental actor) on the free tier.
+    # tri_angle/bing-search-scraper is priced per compute unit (~$0.20/CU).
+    apify_actor_id: str = "tri_angle/bing-search-scraper"
     reddit_client_id: str = ""
     reddit_client_secret: str = ""
     reddit_user_agent: str = "trace/0.1.0"
@@ -38,6 +41,7 @@ class Settings(BaseSettings):
     browser_history_path: Path = Path("./BrowserHistory.json")
     # Optional additional signal sources — set to enable
     chatgpt_export_path: Path | None = None
+    youtube_watch_history_path: Path | None = None
     filesystem_root_dir: Path | None = None
     audit_log_path: Path = Path("./trace_audit.jsonl")
     upload_dir: Path = Path("./uploads")
@@ -69,7 +73,10 @@ class Settings(BaseSettings):
     def resolve_path(cls, v: str | Path) -> Path:
         return Path(v).resolve()
 
-    @field_validator("chatgpt_export_path", "filesystem_root_dir", mode="before")
+    @field_validator(
+        "chatgpt_export_path", "youtube_watch_history_path", "filesystem_root_dir",
+        mode="before",
+    )
     @classmethod
     def resolve_optional_path(cls, v: str | Path | None) -> Path | None:
         if v is None:
