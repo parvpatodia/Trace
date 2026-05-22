@@ -354,3 +354,246 @@ class TestCORS:
                 },
             )
         assert response.status_code in (200, 204)
+
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+
+class TestFrontend:
+    def test_root_returns_200(self) -> None:
+        with TestClient(app) as client:
+            response = client.get("/")
+        assert response.status_code == 200
+
+    def test_root_returns_html(self) -> None:
+        with TestClient(app) as client:
+            response = client.get("/")
+        assert "text/html" in response.headers["content-type"]
+
+    def test_root_contains_trace_title(self) -> None:
+        with TestClient(app) as client:
+            response = client.get("/")
+        assert "Trace" in response.text
+
+    def test_root_contains_upload_form(self) -> None:
+        with TestClient(app) as client:
+            response = client.get("/")
+        assert "upload" in response.text.lower()
+
+
+# ── Upload endpoint ───────────────────────────────────────────────────────────
+
+class TestUploadEndpoint:
+    def test_upload_valid_json_returns_200(self, tmp_path: Path) -> None:
+        from unittest.mock import MagicMock, patch
+
+        mock_settings = MagicMock()
+        mock_settings.upload_dir = tmp_path / "uploads"
+
+        with patch("trace.delivery.api.get_settings", return_value=mock_settings):
+            with TestClient(app) as client:
+                response = client.post(
+                    "/upload",
+                    files={"file": ("BrowserHistory.json", b'{"Browser History":[]}', "application/json")},
+                )
+        assert response.status_code == 200
+
+    def test_upload_returns_upload_id(self, tmp_path: Path) -> None:
+        from unittest.mock import MagicMock, patch
+
+        mock_settings = MagicMock()
+        mock_settings.upload_dir = tmp_path / "uploads"
+
+        with patch("trace.delivery.api.get_settings", return_value=mock_settings):
+            with TestClient(app) as client:
+                response = client.post(
+                    "/upload",
+                    files={"file": ("BrowserHistory.json", b'{"Browser History":[]}', "application/json")},
+                )
+        assert "upload_id" in response.json()
+        assert len(response.json()["upload_id"]) == 36  # UUID format
+
+    def test_upload_returns_filename(self, tmp_path: Path) -> None:
+        from unittest.mock import MagicMock, patch
+
+        mock_settings = MagicMock()
+        mock_settings.upload_dir = tmp_path / "uploads"
+
+        with patch("trace.delivery.api.get_settings", return_value=mock_settings):
+            with TestClient(app) as client:
+                response = client.post(
+                    "/upload",
+                    files={"file": ("BrowserHistory.json", b'{"Browser History":[]}', "application/json")},
+                )
+        assert response.json()["filename"] == "BrowserHistory.json"
+
+    def test_upload_too_large_returns_413(self, tmp_path: Path) -> None:
+        from unittest.mock import MagicMock, patch
+
+        mock_settings = MagicMock()
+        mock_settings.upload_dir = tmp_path / "uploads"
+        big_content = b'{"Browser History":[]}' + b"x" * (101 * 1024 * 1024)
+
+        with patch("trace.delivery.api.get_settings", return_value=mock_settings):
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/upload",
+                    files={"file": ("big.json", big_content, "application/json")},
+                )
+        assert response.status_code == 413
+
+    def test_upload_non_json_bytes_returns_400(self, tmp_path: Path) -> None:
+        from unittest.mock import MagicMock, patch
+
+        mock_settings = MagicMock()
+        mock_settings.upload_dir = tmp_path / "uploads"
+
+        with patch("trace.delivery.api.get_settings", return_value=mock_settings):
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/upload",
+                    files={"file": ("bad.json", b"not json content here", "application/json")},
+                )
+        assert response.status_code == 400
+
+    def test_upload_detects_chatgpt_by_filename(self, tmp_path: Path) -> None:
+        from unittest.mock import MagicMock, patch
+
+        mock_settings = MagicMock()
+        upload_dir = tmp_path / "uploads"
+        mock_settings.upload_dir = upload_dir
+
+        with patch("trace.delivery.api.get_settings", return_value=mock_settings):
+            with TestClient(app) as client:
+                response = client.post(
+                    "/upload",
+                    files={"file": ("conversations.json", b"[]", "application/json")},
+                )
+        assert response.status_code == 200
+        uid = response.json()["upload_id"]
+        assert (upload_dir / f"chatgpt_{uid}.json").exists()
+
+    def test_upload_saves_file_to_disk(self, tmp_path: Path) -> None:
+        from unittest.mock import MagicMock, patch
+
+        mock_settings = MagicMock()
+        upload_dir = tmp_path / "uploads"
+        mock_settings.upload_dir = upload_dir
+
+        with patch("trace.delivery.api.get_settings", return_value=mock_settings):
+            with TestClient(app) as client:
+                response = client.post(
+                    "/upload",
+                    files={"file": ("BrowserHistory.json", b'{"Browser History":[]}', "application/json")},
+                )
+        uid = response.json()["upload_id"]
+        assert (upload_dir / f"history_{uid}.json").exists()
+
+
+# ── Newsletter retrieve endpoint ──────────────────────────────────────────────
+
+class TestNewsletterRetrieve:
+    def test_get_existing_newsletter_returns_200(self) -> None:
+        from trace.delivery.api import _NEWSLETTER_CACHE
+
+        mock = make_mock_pipeline()
+        app.dependency_overrides[get_pipeline] = lambda: mock
+        try:
+            with TestClient(app) as client:
+                gen = client.post("/newsletter/generate")
+            newsletter_id = gen.json()["id"]
+            with TestClient(app) as client:
+                response = client.get(f"/newsletter/{newsletter_id}")
+            assert response.status_code == 200
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_get_nonexistent_newsletter_returns_404(self) -> None:
+        with TestClient(app) as client:
+            response = client.get("/newsletter/00000000-0000-0000-0000-000000000000")
+        assert response.status_code == 404
+
+    def test_retrieved_newsletter_has_same_subject(self) -> None:
+        mock = make_mock_pipeline()
+        app.dependency_overrides[get_pipeline] = lambda: mock
+        try:
+            with TestClient(app) as client:
+                gen = client.post("/newsletter/generate")
+            newsletter_id = gen.json()["id"]
+            original_subject = gen.json()["subject_line"]
+            with TestClient(app) as client:
+                response = client.get(f"/newsletter/{newsletter_id}")
+            assert response.json()["subject_line"] == original_subject
+        finally:
+            app.dependency_overrides.clear()
+
+
+# ── From-upload endpoint ──────────────────────────────────────────────────────
+
+class TestFromUploadEndpoint:
+    def test_missing_upload_id_returns_400(self) -> None:
+        with TestClient(app, raise_server_exceptions=False) as client:
+            response = client.post(
+                "/newsletter/from-upload",
+                json={},
+            )
+        assert response.status_code == 400
+
+    def test_unknown_history_upload_id_returns_404(self, tmp_path: Path) -> None:
+        from unittest.mock import MagicMock, patch
+
+        mock_settings = MagicMock()
+        mock_settings.upload_dir = tmp_path / "uploads"
+
+        with patch("trace.delivery.api.get_settings", return_value=mock_settings):
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/newsletter/from-upload",
+                    json={"history_upload_id": "nonexistent-id"},
+                )
+        assert response.status_code == 404
+
+    def test_valid_upload_returns_newsletter(self, tmp_path: Path) -> None:
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        upload_dir = tmp_path / "uploads"
+        upload_dir.mkdir(parents=True)
+        upload_id = "test-upload-1234"
+        history_file = upload_dir / f"history_{upload_id}.json"
+        history_file.write_bytes(b'{"Browser History":[]}')
+
+        mock_settings = MagicMock()
+        mock_settings.upload_dir = upload_dir
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.run = AsyncMock(return_value=make_pipeline_result())
+
+        with patch("trace.delivery.api.get_settings", return_value=mock_settings):
+            with patch("trace.delivery.api._build_pipeline_from_settings", return_value=mock_pipeline):
+                with TestClient(app) as client:
+                    response = client.post(
+                        "/newsletter/from-upload",
+                        json={"history_upload_id": upload_id},
+                    )
+        assert response.status_code == 200
+        assert "subject_line" in response.json()
+
+    def test_pipeline_build_failure_returns_503(self, tmp_path: Path) -> None:
+        from unittest.mock import MagicMock, patch
+
+        upload_dir = tmp_path / "uploads"
+        upload_dir.mkdir(parents=True)
+        upload_id = "test-upload-5678"
+        history_file = upload_dir / f"history_{upload_id}.json"
+        history_file.write_bytes(b'{"Browser History":[]}')
+
+        mock_settings = MagicMock()
+        mock_settings.upload_dir = upload_dir
+
+        with patch("trace.delivery.api.get_settings", return_value=mock_settings):
+            with patch("trace.delivery.api._build_pipeline_from_settings", return_value=None):
+                with TestClient(app, raise_server_exceptions=False) as client:
+                    response = client.post(
+                        "/newsletter/from-upload",
+                        json={"history_upload_id": upload_id},
+                    )
+        assert response.status_code == 503

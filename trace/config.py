@@ -36,7 +36,11 @@ class Settings(BaseSettings):
     recency_half_life_days: int = Field(default=14, ge=1, le=365)
 
     browser_history_path: Path = Path("./BrowserHistory.json")
+    # Optional additional signal sources — set to enable
+    chatgpt_export_path: Path | None = None
+    filesystem_root_dir: Path | None = None
     audit_log_path: Path = Path("./trace_audit.jsonl")
+    upload_dir: Path = Path("./uploads")
 
     api_host: str = "0.0.0.0"
     api_port: int = Field(default=8000, ge=1024, le=65535)
@@ -58,9 +62,18 @@ class Settings(BaseSettings):
             )
         return v
 
-    @field_validator("browser_history_path", "audit_log_path", mode="before")
+    @field_validator(
+        "browser_history_path", "audit_log_path", "upload_dir", mode="before"
+    )
     @classmethod
     def resolve_path(cls, v: str | Path) -> Path:
+        return Path(v).resolve()
+
+    @field_validator("chatgpt_export_path", "filesystem_root_dir", mode="before")
+    @classmethod
+    def resolve_optional_path(cls, v: str | Path | None) -> Path | None:
+        if v is None:
+            return None
         return Path(v).resolve()
 
 
