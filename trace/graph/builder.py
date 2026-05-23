@@ -50,6 +50,9 @@ _BASE_SIGNAL_WEIGHTS: dict[SignalSource, float] = {
     SignalSource.YOUTUBE_TAKEOUT: 1.0,   # upgraded per-signal in _signal_weight()
     SignalSource.REDDIT_POST: 1.2,
     SignalSource.REDDIT_SAVED: 1.3,      # saved = higher intent than casual browsing
+    SignalSource.GMAIL: 0.9,             # newsletter subject — moderate intent signal
+    SignalSource.GMAIL_OPEN: 1.1,        # user actually opened it — stronger intent
+    SignalSource.GMAIL_IGNORED: 0.6,     # subscription debt: ignored → weak curiosity signal
 }
 
 # Sources that carry explicit user intent — prioritised for signal_samples

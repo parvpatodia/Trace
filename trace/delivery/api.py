@@ -837,11 +837,57 @@ _FRONTEND_HTML = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Connect Services (Scalekit Token Vault) -->
+  <div class="card" style="border-color:#6366f1;">
+    <div class="card-title" style="color:#818cf8;">Connect Services &mdash; Scalekit acts as you</div>
+    <p style="color:var(--muted);font-size:0.82rem;margin-bottom:1rem;">
+      Trace uses <strong>Scalekit Token Vault</strong> to connect your accounts.
+      Your OAuth tokens live in Scalekit's encrypted vault &mdash; never in Trace's env vars or memory.
+      Once connected, the autonomous agent can read your Gmail newsletters and act on your behalf.
+    </p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.7rem;font-size:0.82rem;">
+      <div style="background:var(--surface2,#1e293b);border:1px solid #6366f1;border-radius:8px;padding:1rem;">
+        <div style="font-weight:600;color:#f1f5f9;margin-bottom:0.4rem;">📧 Gmail</div>
+        <div style="color:var(--muted);font-size:0.75rem;margin-bottom:0.7rem;">
+          Read newsletter subjects → build subscription-debt signals.
+          Trace never reads email bodies or sends emails automatically.
+        </div>
+        <button onclick="connectService('gmail')" style="background:#6366f1;color:#fff;border:none;border-radius:5px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">Connect Gmail</button>
+        <span id="gmail-status" style="color:var(--muted);font-size:0.72rem;margin-left:0.5rem;"></span>
+      </div>
+      <div style="background:var(--surface2,#1e293b);border:1px solid #334155;border-radius:8px;padding:1rem;">
+        <div style="font-weight:600;color:#f1f5f9;margin-bottom:0.4rem;">📝 Notion</div>
+        <div style="color:var(--muted);font-size:0.75rem;margin-bottom:0.7rem;">
+          Auto-save emerging topics as Notion pages (Tier A action).
+        </div>
+        <button onclick="connectService('notion')" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:5px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">Connect Notion</button>
+        <span id="notion-status" style="color:var(--muted);font-size:0.72rem;margin-left:0.5rem;"></span>
+      </div>
+      <div style="background:var(--surface2,#1e293b);border:1px solid #334155;border-radius:8px;padding:1rem;">
+        <div style="font-weight:600;color:#f1f5f9;margin-bottom:0.4rem;">📅 Calendar</div>
+        <div style="color:var(--muted);font-size:0.75rem;margin-bottom:0.7rem;">
+          Schedule deep-dive time for emerging interests (Tier A).
+        </div>
+        <button onclick="connectService('google_calendar')" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:5px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">Connect Calendar</button>
+        <span id="google_calendar-status" style="color:var(--muted);font-size:0.72rem;margin-left:0.5rem;"></span>
+      </div>
+      <div style="background:var(--surface2,#1e293b);border:1px solid #334155;border-radius:8px;padding:1rem;">
+        <div style="font-weight:600;color:#f1f5f9;margin-bottom:0.4rem;">💬 Slack</div>
+        <div style="color:var(--muted);font-size:0.75rem;margin-bottom:0.7rem;">
+          DM yourself when a pattern triggers (Tier A).
+        </div>
+        <button onclick="connectService('slack')" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:5px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">Connect Slack</button>
+        <span id="slack-status" style="color:var(--muted);font-size:0.72rem;margin-left:0.5rem;"></span>
+      </div>
+    </div>
+  </div>
+
   <div class="privacy-note">
     <strong>Your data stays local.</strong>
     You export your own files from Google / ChatGPT — no passwords or OAuth tokens required.
     Files are sent only to this server, used once to generate your newsletter, then
     <strong>deleted immediately</strong>. Nothing is stored or shared.
+    <br>OAuth tokens for Gmail/Notion/Calendar/Slack are stored in Scalekit's encrypted Token Vault — never in this server's memory or env vars.
   </div>
 
   <div class="card">
@@ -1360,6 +1406,41 @@ async function generate() {
     stopStages();
     setLoading(false);
     setError('Error: ' + err.message);
+  }
+}
+
+// ── Scalekit Connect Service ───────────────────────────────────────────────────
+async function connectService(connectionName) {
+  const statusEl = document.getElementById(connectionName + '-status');
+  if (statusEl) statusEl.textContent = 'Connecting…';
+  try {
+    const r = await fetch('/auth/connect?connection_name=' + encodeURIComponent(connectionName));
+    const data = await r.json();
+    if (data.link) {
+      window.open(data.link, '_blank', 'width=600,height=700');
+      if (statusEl) statusEl.textContent = '⟳ Complete in popup';
+    } else if (data.message) {
+      if (statusEl) statusEl.textContent = data.message.slice(0, 60);
+    } else {
+      if (statusEl) statusEl.textContent = 'No link returned';
+    }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = 'Error: ' + err.message.slice(0, 50);
+  }
+}
+
+// ── Demo: inject signal ───────────────────────────────────────────────────────
+async function injectDemoSignal(observation) {
+  try {
+    const r = await fetch('/demo/inject-signal', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({observation: observation || 'diffusion policy robotics research', source: 'demo-ui'})
+    });
+    const data = await r.json();
+    return data;
+  } catch (err) {
+    console.error('demo inject failed:', err);
   }
 }
 </script>

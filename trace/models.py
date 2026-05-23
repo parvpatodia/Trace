@@ -16,6 +16,8 @@ class SignalSource(str, Enum):
     REDDIT_COMMENT = "reddit_comment"
     REDDIT_SAVED = "reddit_saved"
     GMAIL = "gmail"
+    GMAIL_OPEN = "gmail_open"      # user opened/read the email
+    GMAIL_IGNORED = "gmail_ignored"  # email arrived but user never opened it
     FILESYSTEM = "filesystem"
     CHATGPT_EXPORT = "chatgpt_export"
     ENTIRE_IO = "entire_io"
