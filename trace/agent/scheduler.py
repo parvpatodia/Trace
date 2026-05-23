@@ -56,7 +56,7 @@ _log.info(
 # Keyed by profile_id.  Previous graph retained so detectors can compute deltas.
 _previous_graphs: dict[str, Any] = {}
 
-_DEFAULT_PROFILE = "default"
+_DEFAULT_PROFILE = "demo" if _DEMO_MODE else "default"
 
 
 # ── Job: Poll Gmail signals ───────────────────────────────────────────────────
