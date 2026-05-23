@@ -72,7 +72,7 @@ class TestTopicEmbedder:
 
     def test_cosine_similarity_between_similar_topics(self, mock_embedder):
         names, matrix = mock_embedder.cosine_similarity_matrix(["robotics", "robot learning"])
-        # Both point in roughly the same direction — should be > 0.40.
+        # Both point in roughly the same direction — should be > 0.35.
         idx_r = names.index("robotics")
         idx_rl = names.index("robot learning")
         assert matrix[idx_r, idx_rl] > COSINE_EDGE_THRESHOLD
@@ -91,7 +91,7 @@ class TestTopicEmbedder:
 
     def test_build_edges_excludes_dissimilar(self, mock_embedder):
         edges = mock_embedder.build_edges(["robotics", "cooking"])
-        assert len(edges) == 0  # cosine = 0, below 0.40
+        assert len(edges) == 0  # cosine = 0, below 0.35
 
     def test_build_edges_empty_input(self, mock_embedder):
         assert mock_embedder.build_edges([]) == []
@@ -187,20 +187,28 @@ class TestEnrichGraph:
     def test_enrichment_with_mock_embedder(self, monkeypatch):
         graph = _graph("robotics", "robot learning", "cooking", "ai safety")
 
-        # Mock embedder that returns predictable edges.
         class MockEmbedder:
-            def build_edges(self, names, threshold=0.40):
+            def build_edges(self, names, threshold=0.35):
                 return [("robotics", "robot learning", 0.9)]
 
+            def cosine_similarity_matrix(self, names):
+                # All off-diagonal scores are low — fallback edges use score ~0.1.
+                n = len(names)
+                sim = np.full((n, n), 0.1, dtype=np.float32)
+                np.fill_diagonal(sim, 1.0)
+                return names, sim
+
         enrichment = enrich_graph(graph, embedder=MockEmbedder())
-        assert len(enrichment.edges) == 1
-        assert enrichment.edges[0][0] in ("robotics", "robot learning")
+        # Primary edge + fallback edges for isolated nodes ("cooking", "ai safety").
+        assert len(enrichment.edges) >= 1
+        primary_edge_names = {enrichment.edges[0][0], enrichment.edges[0][1]}
+        assert "robotics" in primary_edge_names or "robot learning" in primary_edge_names
 
     def test_graph_enrichment_to_dict(self):
         graph = _graph("a", "b")
 
         class MockEmbedder:
-            def build_edges(self, names, threshold=0.40):
+            def build_edges(self, names, threshold=0.35):
                 return [("a", "b", 0.8)]
 
         enrichment = enrich_graph(graph, embedder=MockEmbedder())
@@ -229,6 +237,25 @@ class TestEnrichGraph:
         nbrs = enrichment.neighbors("a")
         assert len(nbrs) == 2
         assert nbrs[0][1] >= nbrs[1][1]  # sorted desc
+
+    def test_fallback_edges_connect_isolated_topics(self):
+        """Isolated topics (degree=0) should get a fallback edge to nearest neighbor."""
+        graph = _graph("robotics", "cooking")
+
+        class MockEmbedder:
+            def build_edges(self, names, threshold=0.35):
+                return []  # Nothing above threshold — both isolated.
+
+            def cosine_similarity_matrix(self, names):
+                # robotics ↔ cooking at 0.15 — below threshold but best available.
+                n = len(names)
+                sim = np.full((n, n), 0.15, dtype=np.float32)
+                np.fill_diagonal(sim, 1.0)
+                return names, sim
+
+        enrichment = enrich_graph(graph, embedder=MockEmbedder())
+        # Both were isolated → fallback should add at least 1 edge.
+        assert len(enrichment.edges) >= 1
 
     def test_community_members(self):
         enrichment = GraphEnrichment(

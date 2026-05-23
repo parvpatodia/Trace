@@ -3,7 +3,7 @@ Graph algorithm layer for the Curiosity Graph.
 
 PIPELINE:
   1. Encode topic names with TopicEmbedder (sentence-transformers/all-MiniLM-L6-v2)
-  2. Build edges: cosine similarity > 0.40 between topic pairs
+  2. Build edges: cosine similarity > 0.35 between topic pairs
   3. Compute PageRank on the edge-weighted graph (networkx)
   4. Blend scores: 0.6 × PageRank + 0.4 × composite_score
   5. Detect communities with Louvain algorithm (python-louvain)
@@ -24,6 +24,12 @@ LOUVAIN COMMUNITIES:
   - bridge_topic_shift detector (Phase 4+ version): bridge = topic in 2+ communities
   - D3 visualization: colour topics by community
   - MCP tool get_topic_neighbors: return neighbors in same community
+
+FALLBACK EDGES:
+  Topics with no edges above the cosine threshold (degree=0) are connected to
+  their single nearest neighbor regardless of threshold. This prevents isolated
+  islands in the visualization for domain-specific short topic names that
+  general-purpose embeddings score below the threshold.
 
 GRACEFUL DEGRADATION:
   networkx or python-louvain not installed → returns empty edges/communities,
@@ -163,10 +169,76 @@ def blend_scores(
     return result
 
 
+def _add_fallback_edges(
+    topic_names: list[str],
+    edges: list[tuple[str, str, float]],
+    embedder: Any,
+) -> list[tuple[str, str, float]]:
+    """Ensure no topic is completely isolated in the graph.
+
+    For any topic with degree=0 (no edges), find its highest-similarity neighbor
+    and add that edge regardless of threshold. This is a UX fallback only —
+    it keeps the visualization connected while the threshold governs all other edges.
+
+    WHY: short domain-specific topic names like "diffusion policy" score below any
+    reasonable general-purpose threshold against their actual neighbors because
+    all-MiniLM-L6-v2 doesn't know the robotics domain. Without this fallback,
+    known-related topics appear as isolated islands in the visualization.
+    """
+    if len(topic_names) < 2:
+        return edges
+
+    # Determine degree of each topic.
+    connected: set[str] = set()
+    for a, b, _ in edges:
+        connected.add(a)
+        connected.add(b)
+
+    isolated = [n for n in topic_names if n not in connected]
+    if not isolated:
+        return edges
+
+    # Compute full similarity matrix once for all isolated topics.
+    names, sim = embedder.cosine_similarity_matrix(topic_names)
+    if not names:
+        return edges
+
+    name_to_idx = {n: i for i, n in enumerate(names)}
+    # Build a set of existing edges (both directions) for dedup.
+    existing: set[frozenset[str]] = {frozenset({a, b}) for a, b, _ in edges}
+    extra: list[tuple[str, str, float]] = []
+
+    for iso in isolated:
+        if iso not in name_to_idx:
+            continue
+        idx = name_to_idx[iso]
+        # Find the best non-self neighbor.
+        best_score = -1.0
+        best_name = ""
+        for j, n in enumerate(names):
+            if n == iso:
+                continue
+            score = float(sim[idx, j])
+            if score > best_score:
+                best_score = score
+                best_name = n
+        if best_name:
+            pair = frozenset({iso, best_name})
+            if pair not in existing:
+                extra.append((iso, best_name, best_score))
+                existing.add(pair)
+                _log.debug(
+                    "fallback edge: %s -- %s (cosine=%.3f, below threshold)",
+                    iso, best_name, best_score,
+                )
+
+    return edges + extra
+
+
 def enrich_graph(
     graph: CuriosityGraph,
     embedder: Any | None = None,
-    cosine_threshold: float = 0.40,
+    cosine_threshold: float = 0.35,
 ) -> "GraphEnrichment":
     """Compute edges, PageRank, Louvain communities, and blended scores.
 
@@ -184,8 +256,11 @@ def enrich_graph(
 
     topic_names = [t.name for t in topics]
 
-    # Step 1: build semantic edges.
+    # Step 1: build semantic edges above threshold.
     edges = embedder.build_edges(topic_names, threshold=cosine_threshold)
+
+    # Step 1b: fallback — ensure every topic has at least one edge.
+    edges = _add_fallback_edges(topic_names, edges, embedder)
 
     # Step 2: PageRank on weighted edge graph.
     pagerank = compute_pagerank(topics, edges)
