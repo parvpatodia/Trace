@@ -154,7 +154,7 @@ class TestTimestampConversion:
     async def test_two_entries_have_distinct_timestamps(self, tmp_path: Path) -> None:
         entries = [
             valid_entry(time_usec=1_704_067_200_000_000),
-            valid_entry(title="Second Page", time_usec=1_704_153_600_000_000),
+            valid_entry(title="Second Page", url="https://example.com/page2", time_usec=1_704_153_600_000_000),
         ]
         path = write_history(tmp_path, entries)
         signals = await GoogleTakeoutCollector(path).collect()
@@ -308,7 +308,7 @@ class TestSinceFiltering:
     async def test_since_none_includes_all_entries(self, tmp_path: Path) -> None:
         entries = [
             valid_entry(time_usec=1_000_000_000_000_000),  # very old
-            valid_entry(title="Second page", time_usec=1_704_067_200_000_000),
+            valid_entry(title="Second page", url="https://example.com/second", time_usec=1_704_067_200_000_000),
         ]
         path = write_history(tmp_path, entries)
         signals = await GoogleTakeoutCollector(path, since=None).collect()
@@ -318,7 +318,7 @@ class TestSinceFiltering:
         since = datetime(2024, 1, 2, tzinfo=timezone.utc)  # 2024-01-02 00:00:00
         entries = [
             valid_entry(time_usec=1_704_067_200_000_000),  # 2024-01-01 → excluded
-            valid_entry(title="Newer page", time_usec=1_704_153_600_000_000),  # 2024-01-02 → included
+            valid_entry(title="Newer page", url="https://example.com/newer", time_usec=1_704_153_600_000_000),  # 2024-01-02 → included
         ]
         path = write_history(tmp_path, entries)
         signals = await GoogleTakeoutCollector(path, since=since).collect()

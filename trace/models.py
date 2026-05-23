@@ -117,7 +117,11 @@ class Topic(BaseModel):
         return max(0, (self.last_seen - self.first_seen).days)
 
     def composite_score(self) -> float:
-        return self.recency_score * self.frequency + self.debt_score * 2.0
+        # Cross-source bonus: a topic appearing in Chrome + YouTube + ChatGPT
+        # is more actionable than one that appeared only in one place.
+        # Each additional source beyond the first adds 0.5 to the score.
+        cross_source_bonus = max(0, len(self.source_types) - 1) * 0.5
+        return self.recency_score * self.frequency + self.debt_score * 2.0 + cross_source_bonus
 
 
 class CuriosityGraph(BaseModel):

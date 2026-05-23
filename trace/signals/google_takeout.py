@@ -48,6 +48,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -58,6 +59,7 @@ from trace.signals.base import SignalCollectionError, SignalCollector
 
 _log = logging.getLogger(__name__)
 _MAX_FILE_BYTES = 100 * 1024 * 1024  # 100 MB
+_STUCK_THRESHOLD: int = 3  # ≥ 3 visits to the same URL = "stuck" web signal
 
 
 class GoogleTakeoutCollector(SignalCollector):
@@ -130,21 +132,41 @@ class GoogleTakeoutCollector(SignalCollector):
                 f"'Browser History' must be a list, got {type(entries).__name__}",
             )
 
+        signals = await asyncio.to_thread(self._parse_entries, entries)
+        _log.info("Collected %d signal(s) from BrowserHistory.json (%d raw entries)", len(signals), len(entries))
+        return signals
+
+    def _parse_entries(self, entries: list[Any]) -> list[RawSignal]:
+        # First pass: count visits per URL for stuck detection
+        url_counts: Counter[str] = Counter()
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            url = entry.get("url", "")
+            if url and (url.startswith("http://") or url.startswith("https://")):
+                url_counts[url] += 1
+
+        # Second pass: deduplicate URLs, emit one signal per unique URL
+        seen_urls: set[str] = set()
         signals: list[RawSignal] = []
         skipped = 0
         for entry in entries:
             try:
-                signal = self._parse_entry(entry)
+                signal = self._parse_entry(entry, url_counts, seen_urls)
                 if signal is not None:
                     signals.append(signal)
             except Exception:
                 skipped += 1
         if skipped:
             _log.debug("Skipped %d malformed/oversized entries", skipped)
-        _log.info("Collected %d signal(s) from BrowserHistory.json (%d raw entries)", len(signals), len(entries))
         return signals
 
-    def _parse_entry(self, entry: dict[str, Any]) -> RawSignal | None:
+    def _parse_entry(
+        self,
+        entry: dict[str, Any],
+        url_counts: Counter[str],
+        seen_urls: set[str],
+    ) -> RawSignal | None:
         if not isinstance(entry, dict):
             return None
         url: str = entry.get("url", "")
@@ -157,16 +179,13 @@ class GoogleTakeoutCollector(SignalCollector):
         if self._should_skip_url(url):
             return None
 
-        ts = datetime.fromtimestamp(time_usec / 1_000_000, tz=timezone.utc)
-        if self._since is not None and ts < self._since:
-            return None
-
         safe_url: str | None = (
             url if (url.startswith("http://") or url.startswith("https://")) else None
         )
 
-        # Google search: extract the raw query — strongest explicit curiosity signal.
-        # "google.com/search" covers google.com, www.google.com, google.co.uk, etc.
+        # Deduplicate non-search URLs — emit one signal per unique page,
+        # using the FIRST occurrence (Chrome history is chronological).
+        # Search URLs are NOT deduplicated — each query is its own signal.
         is_search_query = False
         content: str = ""
         if "google." in url and "/search" in url:
@@ -181,9 +200,25 @@ class GoogleTakeoutCollector(SignalCollector):
                 pass
 
         if not is_search_query:
+            if safe_url in seen_urls:
+                return None
+            if safe_url:
+                seen_urls.add(safe_url)
             if not title or len(title) < self._MIN_TITLE_LENGTH or title == url:
                 return None
-            content = title[:2000]
+            visit_count = url_counts.get(url, 1)
+            is_stuck = visit_count >= _STUCK_THRESHOLD
+            if visit_count > 1:
+                content = f"{title} (visited {visit_count}x)"[:2000]
+            else:
+                content = title[:2000]
+        else:
+            visit_count = 1
+            is_stuck = False
+
+        ts = datetime.fromtimestamp(time_usec / 1_000_000, tz=timezone.utc)
+        if self._since is not None and ts < self._since:
+            return None
 
         return RawSignal(
             source=self.source,
@@ -194,6 +229,8 @@ class GoogleTakeoutCollector(SignalCollector):
                 "time_usec": time_usec,
                 "page_transition": entry.get("page_transition", ""),
                 "is_search_query": is_search_query,
+                "visit_count": visit_count,
+                "is_stuck": is_stuck,
             },
         )
 
