@@ -1041,6 +1041,50 @@ _FRONTEND_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
+<!-- D3 Curiosity Graph Visualization -->
+<div class="card" id="graph-card" style="display:none;">
+  <div class="card-title" style="color:var(--accent);">Curiosity Graph &mdash; Force-Directed</div>
+  <p style="color:var(--muted);font-size:0.8rem;margin-bottom:0.8rem;">
+    Topics as nodes · Semantic edges (cosine &gt;0.65) · Colour = community · Size = blended score
+  </p>
+  <div id="d3-graph" style="width:100%;height:400px;background:var(--surface2,#1e293b);border-radius:8px;border:1px solid var(--border2,#334155);overflow:hidden;"></div>
+  <div style="font-size:0.72rem;color:var(--muted);margin-top:0.5rem;">
+    <span id="graph-stats"></span>
+  </div>
+</div>
+
+<!-- Demo Control Panel -->
+<div class="card" style="border-color:#f59e0b;">
+  <div class="card-title" style="color:#fbbf24;">🎬 Demo Control Panel</div>
+  <p style="color:var(--muted);font-size:0.8rem;margin-bottom:0.8rem;">
+    For hackathon judges: inject the demo profile and watch the autonomous loop run in real-time.
+  </p>
+  <div style="display:flex;gap:0.7rem;flex-wrap:wrap;margin-bottom:0.8rem;">
+    <button onclick="seedDemo()" style="background:#f59e0b;color:#000;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;font-weight:600;">
+      1. Seed Demo Profile
+    </button>
+    <button onclick="loadGraph()" style="background:#6366f1;color:#fff;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">
+      2. Show Curiosity Graph
+    </button>
+    <button onclick="injectAndShow()" style="background:#10b981;color:#fff;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">
+      3. Inject Signal + Trigger Loop
+    </button>
+    <button onclick="checkApprovals()" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">
+      4. Check Pending Approvals
+    </button>
+  </div>
+  <pre id="demo-output" style="background:#0f172a;color:#94a3b8;border:1px solid #334155;border-radius:6px;padding:0.8rem;font-size:0.75rem;max-height:200px;overflow-y:auto;white-space:pre-wrap;"></pre>
+</div>
+
+<!-- Pending Approvals Panel -->
+<div class="card" id="approvals-card" style="display:none;">
+  <div class="card-title" style="color:#f472b6;">📬 Pending Actions (Tier B)</div>
+  <p style="color:var(--muted);font-size:0.8rem;margin-bottom:0.8rem;">
+    These drafts require your approval before execution. Gmail drafts are created; Reddit posts are prepared but not submitted.
+  </p>
+  <div id="approvals-list"></div>
+</div>
+
 <footer>Trace &mdash; Curiosity OS &middot; MCP AI Agents Hackathon &middot; Claude &middot; Apify MCP &middot; Scalekit &middot; Redis</footer>
 
 <script>
@@ -1435,13 +1479,207 @@ async function injectDemoSignal(observation) {
     const r = await fetch('/demo/inject-signal', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({observation: observation || 'diffusion policy robotics research', source: 'demo-ui'})
+      body: JSON.stringify({observation: observation || 'diffusion policy robotics research', source: 'demo-ui', profile_id: 'demo'})
     });
     const data = await r.json();
     return data;
   } catch (err) {
     console.error('demo inject failed:', err);
   }
+}
+
+// ── Demo Control Panel ────────────────────────────────────────────────────────
+function demoLog(msg) {
+  const el = document.getElementById('demo-output');
+  if (!el) return;
+  const ts = new Date().toISOString().slice(11, 19);
+  el.textContent = '[' + ts + '] ' + msg + '\n' + el.textContent;
+}
+
+async function seedDemo() {
+  demoLog('Seeding demo profile...');
+  try {
+    const r = await fetch('/demo/seed', {method: 'POST'});
+    const d = await r.json();
+    demoLog('✅ Seeded: ' + d.topic_count + ' topics | profile_id=' + d.profile_id);
+    demoLog('Topics: ' + d.topics.join(', '));
+  } catch(e) { demoLog('❌ Seed failed: ' + e.message); }
+}
+
+async function loadGraph() {
+  demoLog('Loading curiosity graph...');
+  try {
+    const r = await fetch('/graph.json?profile_id=demo');
+    const d = await r.json();
+    if (d.error) { demoLog('⚠️ ' + d.error); return; }
+    demoLog('Graph: ' + d.stats.node_count + ' nodes, ' + d.stats.link_count + ' edges, ' + d.stats.community_count + ' communities');
+    renderD3Graph(d);
+    document.getElementById('graph-card').style.display = '';
+  } catch(e) { demoLog('❌ Graph load failed: ' + e.message); }
+}
+
+async function injectAndShow() {
+  demoLog('Injecting demo signal...');
+  try {
+    const topics = ['diffusion policy breakthrough paper', 'embodied AI new robot benchmark', 'nuplan closed-loop evaluation'];
+    const obs = topics[Math.floor(Math.random() * topics.length)];
+    const r = await fetch('/demo/inject-signal', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({observation: obs, source: 'demo-panel', profile_id: 'demo'})
+    });
+    const d = await r.json();
+    demoLog('✅ Signal injected: "' + obs.slice(0,50) + '"');
+    demoLog('Pending signals: ' + d.pending_count);
+    demoLog('⏱ Autonomous loop will detect patterns in ~30s (DEMO_MODE)');
+  } catch(e) { demoLog('❌ Inject failed: ' + e.message); }
+}
+
+async function checkApprovals() {
+  demoLog('Checking pending approvals...');
+  try {
+    const r = await fetch('/approvals?profile_id=demo');
+    const d = await r.json();
+    demoLog('Pending approvals: ' + d.count);
+    if (d.count > 0) {
+      document.getElementById('approvals-card').style.display = '';
+      renderApprovals(d.pending);
+    } else {
+      demoLog('No pending actions yet — run the loop first.');
+    }
+  } catch(e) { demoLog('❌ Approvals check failed: ' + e.message); }
+}
+
+function renderApprovals(items) {
+  const el = document.getElementById('approvals-list');
+  if (!el) return;
+  el.innerHTML = items.map(a => `
+    <div style="background:var(--surface2,#1e293b);border:1px solid #475569;border-radius:8px;padding:0.8rem;margin-bottom:0.6rem;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.4rem;">
+        <strong style="color:#f1f5f9;font-size:0.85rem;">${a.title}</strong>
+        <span style="background:#334155;color:#94a3b8;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem;">${a.action_type}</span>
+      </div>
+      <div style="color:var(--muted);font-size:0.75rem;margin-bottom:0.6rem;">${a.preview.slice(0,200)}...</div>
+      <div style="display:flex;gap:0.5rem;">
+        <button onclick="approveAction('${a.id}')" style="background:#10b981;color:#fff;border:none;border-radius:5px;padding:0.3rem 0.7rem;cursor:pointer;font-size:0.78rem;">✓ Approve</button>
+        <button onclick="rejectAction('${a.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:5px;padding:0.3rem 0.7rem;cursor:pointer;font-size:0.78rem;">✗ Reject</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function approveAction(id) {
+  demoLog('Approving action ' + id.slice(0,8) + '...');
+  try {
+    const r = await fetch('/approvals/' + id + '/approve', {method: 'POST'});
+    const d = await r.json();
+    demoLog('✅ Approved: ' + d.action.action_type + ' — ' + d.action.title.slice(0,50));
+    checkApprovals();
+  } catch(e) { demoLog('❌ ' + e.message); }
+}
+
+async function rejectAction(id) {
+  demoLog('Rejecting action ' + id.slice(0,8) + '...');
+  try {
+    const r = await fetch('/approvals/' + id + '/reject', {method: 'POST'});
+    const d = await r.json();
+    demoLog('✗ Rejected: ' + d.action.action_type);
+    checkApprovals();
+  } catch(e) { demoLog('❌ ' + e.message); }
+}
+
+// ── D3 Force-Directed Graph ───────────────────────────────────────────────────
+function renderD3Graph(data) {
+  const container = document.getElementById('d3-graph');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const W = container.offsetWidth || 700, H = 400;
+  const communityColors = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#84cc16'];
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', W); svg.setAttribute('height', H);
+  svg.style.cssText = 'width:100%;height:100%;';
+
+  // Minimal force layout without d3 library (spring simulation).
+  const nodes = data.nodes.map((n, i) => ({
+    ...n,
+    x: W/2 + (Math.random()-0.5)*200,
+    y: H/2 + (Math.random()-0.5)*200,
+    vx: 0, vy: 0, idx: i
+  }));
+  const nodeMap = {};
+  nodes.forEach(n => nodeMap[n.id] = n);
+
+  // Simple spring layout: 30 iterations.
+  for (let iter = 0; iter < 60; iter++) {
+    // Repulsion.
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i+1; j < nodes.length; j++) {
+        const dx = nodes[j].x - nodes[i].x, dy = nodes[j].y - nodes[i].y;
+        const dist = Math.sqrt(dx*dx+dy*dy) || 1;
+        const force = 4000 / (dist*dist);
+        nodes[i].vx -= dx/dist*force; nodes[i].vy -= dy/dist*force;
+        nodes[j].vx += dx/dist*force; nodes[j].vy += dy/dist*force;
+      }
+    }
+    // Attraction along edges.
+    data.links.forEach(l => {
+      const a = nodeMap[l.source], b = nodeMap[l.target];
+      if (!a || !b) return;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.sqrt(dx*dx+dy*dy) || 1;
+      const force = (dist - 100) * 0.03 * l.value;
+      a.vx += dx/dist*force; a.vy += dy/dist*force;
+      b.vx -= dx/dist*force; b.vy -= dy/dist*force;
+    });
+    // Center pull + damping.
+    nodes.forEach(n => {
+      n.vx += (W/2 - n.x) * 0.008; n.vy += (H/2 - n.y) * 0.008;
+      n.vx *= 0.85; n.vy *= 0.85;
+      n.x = Math.max(30, Math.min(W-30, n.x + n.vx));
+      n.y = Math.max(30, Math.min(H-30, n.y + n.vy));
+    });
+  }
+
+  // Draw edges.
+  const edgeG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  data.links.forEach(l => {
+    const a = nodeMap[l.source], b = nodeMap[l.target];
+    if (!a || !b) return;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
+    line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+    line.setAttribute('stroke', '#334155');
+    line.setAttribute('stroke-width', Math.max(0.5, l.value * 2));
+    line.setAttribute('opacity', 0.6);
+    edgeG.appendChild(line);
+  });
+  svg.appendChild(edgeG);
+
+  // Draw nodes.
+  const nodeG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  nodes.forEach(n => {
+    const r = Math.max(6, Math.min(20, 6 + n.blended_score * 28));
+    const color = communityColors[(n.community || 0) % communityColors.length];
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('transform', 'translate('+n.x+','+n.y+')');
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('r', r); circle.setAttribute('fill', color); circle.setAttribute('opacity', 0.85);
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    title.textContent = n.id + ' (score:' + n.blended_score + ', community:' + n.community + ')';
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('dy', r+11); label.setAttribute('text-anchor', 'middle');
+    label.setAttribute('fill', '#cbd5e1'); label.setAttribute('font-size', '9');
+    label.textContent = n.id.slice(0,18);
+    g.appendChild(circle); g.appendChild(title); g.appendChild(label);
+    nodeG.appendChild(g);
+  });
+  svg.appendChild(nodeG);
+  container.appendChild(svg);
+
+  const statsEl = document.getElementById('graph-stats');
+  if (statsEl) statsEl.textContent = data.stats.node_count + ' topics · ' + data.stats.link_count + ' semantic edges · ' + data.stats.community_count + ' communities';
 }
 </script>
 </body>
