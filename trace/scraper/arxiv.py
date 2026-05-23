@@ -5,7 +5,7 @@ ArXiv API:
   GET https://export.arxiv.org/api/query
     ?search_query=all:<query>
     &max_results=<n>
-    &sortBy=relevance
+    &sortBy=submittedDate
     &sortOrder=descending
 
 Response format: Atom XML (application/atom+xml)
@@ -25,9 +25,28 @@ Signal extraction per entry:
   <summary>    → ScrapedArticle.summary (truncated to 3000 chars)
   <published>  → ScrapedArticle.published_at (UTC datetime)
 
+Date filter:
+  Papers older than _MAX_AGE_YEARS (10) are dropped. This keeps newsletter
+  content current. ArXiv results sorted by submittedDate descending, so
+  skipped entries are always at the end — we can break early once we hit the
+  cutoff, but we don't bother since max_results is already small (≤10).
+
+Retry logic:
+  ArXiv API is occasionally slow or returns 503 under load. Up to
+  _MAX_RETRIES=2 retries with exponential backoff (1s, 2s) are attempted
+  before raising ScraperError. Total max wait: ~3s, well within pipeline
+  timeout budgets.
+
 Relevance scoring:
   Position-based: rank 0 → 1.0, rank n-1 → 1/(n+1).
-  ArXiv results are already sorted by relevance.
+  ArXiv results are already sorted by submittedDate (most recent first).
+
+WHY sortBy=submittedDate INSTEAD OF relevance:
+  A newsletter should surface NEW research, not just the most-cited classic.
+  sortBy=relevance returns the same landmark papers every time (e.g. the
+  2017 Transformer paper for every ML topic), which makes the newsletter stale.
+  submittedDate returns papers from the last few days/weeks that match the
+  topic, making each issue genuinely fresh.
 
 WHY httpx.AsyncClient DEPENDENCY INJECTION:
   Allows tests to pass a pre-configured client (with respx transport mock)
@@ -46,8 +65,10 @@ WHY NORMALIZE ID TO https://:
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -58,6 +79,10 @@ from trace.scraper.base import ArticleScraper, ScraperError
 _ARXIV_API = "https://export.arxiv.org/api/query"
 _ATOM_NS = "http://www.w3.org/2005/Atom"
 _TIMEOUT = 20.0
+_MAX_RETRIES = 2
+_MAX_AGE_YEARS = 10
+
+_log = logging.getLogger(__name__)
 
 
 class ArXivScraper(ArticleScraper):
@@ -83,36 +108,52 @@ class ArXivScraper(ArticleScraper):
     async def scrape(
         self, topic: Topic, max_results: int = 5
     ) -> list[ScrapedArticle]:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=_MAX_AGE_YEARS * 365)
         params = {
             "search_query": f"all:{topic.name}",
             "max_results": str(max_results),
-            "sortBy": "relevance",
+            "sortBy": "submittedDate",
             "sortOrder": "descending",
         }
         xml_text = await self._fetch(params)
-        return self._parse(xml_text, topic, max_results)
+        return self._parse(xml_text, topic, max_results, cutoff)
 
     async def _fetch(self, params: dict[str, str]) -> str:
-        try:
-            if self._client is not None:
-                response = await self._client.get(_ARXIV_API, params=params)
-            else:
-                async with httpx.AsyncClient(timeout=self._timeout) as c:
-                    response = await c.get(_ARXIV_API, params=params)
-            response.raise_for_status()
-            return response.text
-        except httpx.HTTPStatusError as e:
-            raise ScraperError(
-                self.source,
-                f"HTTP {e.response.status_code} from ArXiv API",
-            ) from e
-        except httpx.RequestError as e:
-            raise ScraperError(
-                self.source, f"Network error calling ArXiv API: {e}"
-            ) from e
+        last_exc: Exception | None = None
+        for attempt in range(_MAX_RETRIES + 1):
+            if attempt > 0:
+                await asyncio.sleep(2 ** (attempt - 1))  # 1s, 2s
+            try:
+                if self._client is not None:
+                    response = await self._client.get(_ARXIV_API, params=params)
+                else:
+                    async with httpx.AsyncClient(timeout=self._timeout) as c:
+                        response = await c.get(_ARXIV_API, params=params)
+                response.raise_for_status()
+                return response.text
+            except httpx.HTTPStatusError as e:
+                last_exc = e
+                if e.response.status_code < 500:
+                    raise ScraperError(
+                        self.source,
+                        f"HTTP {e.response.status_code} from ArXiv API",
+                    ) from e
+                _log.warning(
+                    "ArXiv API HTTP %d (attempt %d/%d), retrying…",
+                    e.response.status_code, attempt + 1, _MAX_RETRIES + 1,
+                )
+            except httpx.RequestError as e:
+                last_exc = e
+                _log.warning(
+                    "ArXiv network error (attempt %d/%d): %s",
+                    attempt + 1, _MAX_RETRIES + 1, e,
+                )
+        raise ScraperError(
+            self.source, f"ArXiv API failed after {_MAX_RETRIES + 1} attempts: {last_exc}"
+        ) from last_exc
 
     def _parse(
-        self, xml_text: str, topic: Topic, max_results: int
+        self, xml_text: str, topic: Topic, max_results: int, cutoff: datetime
     ) -> list[ScrapedArticle]:
         try:
             root = ET.fromstring(xml_text.strip())
@@ -126,7 +167,7 @@ class ArXivScraper(ArticleScraper):
         articles: list[ScrapedArticle] = []
 
         for i, entry in enumerate(entries[:max_results]):
-            article = self._parse_entry(entry, ns, topic, i, len(entries))
+            article = self._parse_entry(entry, ns, topic, i, len(entries), cutoff)
             if article is not None:
                 articles.append(article)
 
@@ -139,6 +180,7 @@ class ArXivScraper(ArticleScraper):
         topic: Topic,
         rank: int,
         total: int,
+        cutoff: datetime,
     ) -> ScrapedArticle | None:
         id_el = entry.find("atom:id", ns)
         title_el = entry.find("atom:title", ns)
@@ -159,6 +201,10 @@ class ArXivScraper(ArticleScraper):
         published_at = _parse_datetime(
             (published_el.text or "").strip() if published_el is not None else ""
         )
+
+        # Drop papers older than _MAX_AGE_YEARS — keeps newsletter content fresh
+        if published_at is not None and published_at < cutoff:
+            return None
 
         relevance_score = max(0.0, 1.0 - rank / max(1, total))
 

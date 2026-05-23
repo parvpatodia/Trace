@@ -425,7 +425,6 @@ _FRONTEND_HTML = """<!DOCTYPE html>
   }
   .newsletter-header h2 { font-size: 1.5rem; font-weight: 700; line-height: 1.3; }
   .meta { font-size: 0.8rem; color: var(--muted); margin-top: 0.4rem; }
-  .section { margin-bottom: 1.75rem; }
   .section-badge {
     display: inline-block;
     font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
@@ -435,13 +434,12 @@ _FRONTEND_HTML = """<!DOCTYPE html>
   .badge-weekly_topics { background: rgba(99,102,241,0.2); color: #818cf8; }
   .badge-curiosity_debt { background: rgba(251,191,36,0.15); color: #fbbf24; }
   .badge-rabbit_hole { background: rgba(52,211,153,0.15); color: #34d399; }
-  .section h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.6rem; }
-  .section p { color: #cbd5e1; line-height: 1.7; font-size: 0.95rem; }
-  .sources { margin-top: 0.75rem; }
+  .section h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 0.6rem; line-height: 1.4; }
+  .section p { color: #cbd5e1; line-height: 1.75; font-size: 0.95rem; }
+  .sources { margin-top: 0.85rem; display: flex; flex-direction: column; gap: 0.35rem; }
   .sources a {
-    display: block; font-size: 0.8rem; color: var(--accent);
-    text-decoration: none; margin-top: 0.25rem;
-    word-break: break-all;
+    font-size: 0.8rem; color: var(--accent);
+    text-decoration: none;
   }
   .sources a:hover { color: var(--accent-hover); text-decoration: underline; }
   details.audit {
@@ -476,6 +474,58 @@ _FRONTEND_HTML = """<!DOCTYPE html>
   }
   .errors-box h4 { margin-bottom: 0.4rem; font-weight: 600; }
   .errors-box li { margin-left: 1rem; margin-top: 0.2rem; }
+  .toc {
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.25rem;
+    background: rgba(99,102,241,0.06);
+    border: 1px solid rgba(99,102,241,0.2);
+    border-radius: 8px;
+  }
+  .toc-label {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--accent); font-weight: 600; margin-bottom: 0.6rem;
+  }
+  .toc ol { padding-left: 1.2rem; }
+  .toc li { margin-top: 0.3rem; font-size: 0.88rem; line-height: 1.5; }
+  .toc a { color: var(--text); text-decoration: none; }
+  .toc a:hover { color: var(--accent); }
+  .section { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+  .section:last-child { border-bottom: none; }
+  .section-meta { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+  .src-badge {
+    display: inline-block; font-size: 0.65rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 0.15em 0.5em; border-radius: 3px;
+    vertical-align: middle; flex-shrink: 0;
+  }
+  .src-arxiv { background: rgba(180,120,255,0.2); color: #c084fc; }
+  .src-hn    { background: rgba(251,146,60,0.2);  color: #fb923c; }
+  .src-web   { background: rgba(56,189,248,0.2);  color: #38bdf8; }
+  .sources a { display: flex; align-items: center; gap: 0.45rem; }
+  .sources a .link-text {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 520px;
+  }
+  .download-bar {
+    display: flex; gap: 0.75rem; margin-bottom: 1.25rem; flex-wrap: wrap;
+  }
+  .download-bar button {
+    padding: 0.45rem 1rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 0.82rem; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .download-bar button:hover {
+    border-color: var(--accent); color: var(--accent);
+  }
+  .share-link {
+    font-size: 0.78rem; color: var(--muted); margin-top: 0.5rem;
+  }
+  .share-link a { color: var(--accent); text-decoration: none; }
+  .share-link a:hover { text-decoration: underline; }
   .privacy-note {
     font-size: 0.78rem; color: var(--muted);
     background: rgba(255,255,255,0.03);
@@ -585,6 +635,12 @@ _FRONTEND_HTML = """<!DOCTYPE html>
       <h2 id="subject"></h2>
       <div class="meta" id="meta"></div>
     </div>
+    <div class="download-bar">
+      <button onclick="downloadHtml()">⬇ Download HTML</button>
+      <button onclick="downloadText()">⬇ Download Plain Text</button>
+    </div>
+    <div id="share-link-container"></div>
+    <div id="toc"></div>
     <div id="sections"></div>
     <div id="errors-container"></div>
   </div>
@@ -594,6 +650,7 @@ _FRONTEND_HTML = """<!DOCTYPE html>
 
 <script>
 let activeTab = 'google';
+let newsletterData = null;
 
 function switchTab(tab) {
   activeTab = tab;
@@ -680,22 +737,75 @@ function safeHref(u) {
   return (l.startsWith('http://') || l.startsWith('https://')) ? u : '#';
 }
 
+function sourceBadge(url) {
+  if (url.includes('arxiv.org')) return '<span class="src-badge src-arxiv">arXiv</span>';
+  if (url.includes('ycombinator.com')) return '<span class="src-badge src-hn">HN</span>';
+  return '<span class="src-badge src-web">Web</span>';
+}
+
+function downloadBlob(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function downloadHtml() {
+  if (!newsletterData) return;
+  const subj = newsletterData.subject_line.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+  downloadBlob(newsletterData.html, `trace-${subj}.html`, 'text/html');
+}
+
+function downloadText() {
+  if (!newsletterData) return;
+  const subj = newsletterData.subject_line.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+  downloadBlob(newsletterData.plain_text, `trace-${subj}.txt`, 'text/plain');
+}
+
 function renderNewsletter(data) {
+  newsletterData = data;
   document.getElementById('subject').textContent = data.subject_line;
   const dt = new Date(data.generated_at);
   const forStr = data.generated_for ? ' · for ' + data.generated_for : '';
   document.getElementById('meta').textContent = dt.toLocaleString() + forStr;
 
+  // Share link
+  const shareCont = document.getElementById('share-link-container');
+  if (data.id) {
+    shareCont.innerHTML = `<div class="share-link">Permalink: <a href="/newsletter/${esc(data.id)}" target="_blank">/newsletter/${esc(data.id)}</a></div>`;
+  } else {
+    shareCont.innerHTML = '';
+  }
+
+  // Table of contents
+  const tocEl = document.getElementById('toc');
+  if (data.sections && data.sections.length > 1) {
+    const items = data.sections.map((s, i) =>
+      `<li><a href="#section-${i}">${esc(s.title)}</a></li>`
+    ).join('');
+    tocEl.innerHTML = `<div class="toc"><div class="toc-label">In this issue</div><ol>${items}</ol></div>`;
+  } else {
+    tocEl.innerHTML = '';
+  }
+
   const secEl = document.getElementById('sections');
   secEl.innerHTML = '';
-  data.sections.forEach(s => {
+  data.sections.forEach((s, i) => {
     const div = document.createElement('div');
     div.className = 'section';
-    const urls = s.source_urls.map(u =>
-      `<a href="${esc(safeHref(u))}" target="_blank" rel="noopener noreferrer">${esc(u)}</a>`
-    ).join('');
+    div.id = `section-${i}`;
+    const urls = s.source_urls.map(u => {
+      const href = esc(safeHref(u));
+      const badge = sourceBadge(u);
+      const display = esc(u);
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer">${badge}<span class="link-text">${display}</span></a>`;
+    }).join('');
     div.innerHTML = `
-      <span class="${badgeClass(s.section_type)}">${esc(badgeLabel(s.section_type))}</span>
+      <div class="section-meta">
+        <span class="${badgeClass(s.section_type)}">${esc(badgeLabel(s.section_type))}</span>
+      </div>
       <h3>${esc(s.title)}</h3>
       <p>${esc(s.content)}</p>
       ${urls ? '<div class="sources">' + urls + '</div>' : ''}
@@ -710,7 +820,7 @@ function renderNewsletter(data) {
   errBox.innerHTML = '';
   if (data.errors && data.errors.length) {
     errBox.innerHTML = `<div class="errors-box"><h4>Non-fatal pipeline warnings (${data.errors.length})</h4><ul>${
-      data.errors.map(e => '<li>' + e + '</li>').join('')
+      data.errors.map(e => '<li>' + esc(e) + '</li>').join('')
     }</ul></div>`;
   }
 

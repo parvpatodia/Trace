@@ -6,6 +6,7 @@ Algolia HN Search API (free, no key required):
     ?query=<topic>
     &tags=story
     &hitsPerPage=<n>
+    &numericFilters=created_at_i><30_days_ago_unix_timestamp>
 
 Response format: JSON
   {
@@ -44,7 +45,7 @@ WHY ALGOLIA NOT THE OFFICIAL HN FIREBASE API:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -55,6 +56,7 @@ from trace.scraper.base import ArticleScraper, ScraperError
 _HN_SEARCH_API = "https://hn.algolia.com/api/v1/search"
 _HN_ITEM_URL = "https://news.ycombinator.com/item?id={}"
 _TIMEOUT = 10.0
+_LOOKBACK_DAYS = 30
 
 
 class HackerNewsScraper(ArticleScraper):
@@ -79,10 +81,14 @@ class HackerNewsScraper(ArticleScraper):
     async def scrape(
         self, topic: Topic, max_results: int = 5
     ) -> list[ScrapedArticle]:
+        cutoff_ts = int(
+            (datetime.now(timezone.utc) - timedelta(days=_LOOKBACK_DAYS)).timestamp()
+        )
         params = {
             "query": topic.name,
             "tags": "story",
             "hitsPerPage": str(max_results),
+            "numericFilters": f"created_at_i>{cutoff_ts}",
         }
         data = await self._fetch(params)
         return self._parse(data, topic, max_results)

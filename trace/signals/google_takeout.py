@@ -15,22 +15,28 @@ Google Takeout format (Takeout/Chrome/BrowserHistory.json):
 }
 
 Signal extraction:
-  content   = page title (sent to topic extractor; captures search intent)
+  content   = Google search query (for search URLs) OR page title
   url       = page URL (http/https only; internal chrome:// URLs are None)
   timestamp = UTC datetime from time_usec
-  metadata  = {time_usec, page_transition}
+  metadata  = {time_usec, page_transition, is_search_query}
+
+Google search query extraction:
+  URLs matching *.google.*/search?q=... are the strongest curiosity signals in
+  Chrome history — they represent explicit intent, not passive browsing. The q=
+  parameter is extracted via urllib.parse.parse_qs and used as content instead
+  of the page title ("Google Search" or similar uninformative strings).
+
+  Example: https://www.google.com/search?q=diffusion+models+tutorial
+    → content = "diffusion models tutorial"  (not "diffusion models tutorial - Google Search")
+
+  This matters because the page title often just appends " - Google Search",
+  while the raw query is cleaner and more semantically precise for topic extraction.
 
 Noise filtering removes:
   - Chrome-internal URLs: chrome://, chrome-extension://, edge://, about:, data:, file://
-  - Entries with missing title, url, or time_usec
-  - Titles shorter than 3 characters (tab labels like "—", "•")
-  - Titles identical to the URL (no real page title was set)
-
-WHY PAGE TITLE AS content, NOT URL:
-  The topic extractor (Claude) needs semantic text to cluster topics from.
-  "Attention Is All You Need - arXiv" is a signal.
-  "https://arxiv.org/abs/1706.03762" is not — it's opaque to the LLM
-  without additional context. Title is always more semantically rich.
+  - Entries with missing url or time_usec
+  - For search URLs: entries with no q= parameter or query shorter than _MIN_TITLE_LENGTH
+  - For non-search URLs: entries with missing/short title or title identical to URL
 
 WHY time_usec / 1_000_000 (not / 1000):
   Chrome stores timestamps in microseconds (1e-6 s), not milliseconds (1e-3 s).
@@ -45,6 +51,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 from trace.models import RawSignal, SignalSource
 from trace.signals.base import SignalCollectionError, SignalCollector
@@ -144,38 +151,49 @@ class GoogleTakeoutCollector(SignalCollector):
         title: str = entry.get("title", "").strip()
         time_usec: int | None = entry.get("time_usec")
 
-        # Structural validation — skip incomplete entries silently
-        if not url or not title or time_usec is None:
+        if not url or time_usec is None:
             return None
 
-        # Skip browser-internal URLs that carry no curiosity signal
         if self._should_skip_url(url):
             return None
 
-        # Skip uninformative titles
-        if len(title) < self._MIN_TITLE_LENGTH or title == url:
-            return None
-
         ts = datetime.fromtimestamp(time_usec / 1_000_000, tz=timezone.utc)
-
         if self._since is not None and ts < self._since:
             return None
 
-        # Only include URL on the signal if it's a navigable http/https link.
-        # chrome:// etc. are already excluded above, but other schemes (ftp://)
-        # are technically possible — RawSignal.validate_url_scheme enforces http/https.
         safe_url: str | None = (
             url if (url.startswith("http://") or url.startswith("https://")) else None
         )
 
+        # Google search: extract the raw query — strongest explicit curiosity signal.
+        # "google.com/search" covers google.com, www.google.com, google.co.uk, etc.
+        is_search_query = False
+        content: str = ""
+        if "google." in url and "/search" in url:
+            try:
+                qs = parse_qs(urlparse(url).query)
+                q_parts = qs.get("q") or []
+                query = q_parts[0].strip() if q_parts else ""
+                if len(query) >= self._MIN_TITLE_LENGTH:
+                    content = query[:2000]
+                    is_search_query = True
+            except Exception:
+                pass
+
+        if not is_search_query:
+            if not title or len(title) < self._MIN_TITLE_LENGTH or title == url:
+                return None
+            content = title[:2000]
+
         return RawSignal(
             source=self.source,
-            content=title[:2000],
+            content=content,
             url=safe_url,
             timestamp=ts,
             metadata={
                 "time_usec": time_usec,
                 "page_transition": entry.get("page_transition", ""),
+                "is_search_query": is_search_query,
             },
         )
 
