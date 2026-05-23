@@ -879,6 +879,14 @@ _FRONTEND_HTML = """<!DOCTYPE html>
         <button onclick="connectService('slack')" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:5px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">Connect Slack</button>
         <span id="slack-status" style="color:var(--muted);font-size:0.72rem;margin-left:0.5rem;"></span>
       </div>
+      <div style="background:var(--surface2,#1e293b);border:1px solid #334155;border-radius:8px;padding:1rem;">
+        <div style="font-weight:600;color:#f1f5f9;margin-bottom:0.4rem;">🟠 Reddit</div>
+        <div style="color:var(--muted);font-size:0.75rem;margin-bottom:0.7rem;">
+          Prepare bridge-topic posts for approval (Tier B draft — never auto-publishes).
+        </div>
+        <button onclick="connectService('reddit')" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:5px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">Connect Reddit</button>
+        <span id="reddit-status" style="color:var(--muted);font-size:0.72rem;margin-left:0.5rem;"></span>
+      </div>
     </div>
   </div>
 
@@ -2391,13 +2399,47 @@ async def list_approvals(profile_id: str = "default") -> dict[str, Any]:
 
 @app.post("/approvals/{action_id}/approve")
 async def approve_action(action_id: str) -> dict[str, Any]:
-    """Approve a pending Tier B action (Gmail draft or Reddit post)."""
+    """Approve a pending Tier B action and execute it.
+
+    gmail_draft  → calls gmail_create_draft via Scalekit (NEVER sends)
+    reddit_post  → calls submit_approved_post via Scalekit (requires subreddit)
+    """
     from trace.agent.approvals import get_approvals_queue
     queue = get_approvals_queue()
     action = await queue.approve(action_id)
     if action is None:
         raise HTTPException(status_code=404, detail="Action not found or already resolved")
-    return {"status": "approved", "action": action.to_dict()}
+
+    execution_result: dict[str, Any] = {"status": "no_executor"}
+
+    if action.action_type == "gmail_draft":
+        try:
+            from trace.actions.gmail_draft import create_digest_draft
+            payload = action.payload
+            execution_result = await create_digest_draft(
+                topic_name=payload.get("subject", action.title).replace("[Trace] Curiosity digest: ", ""),
+                briefing=payload.get("body", action.preview),
+                profile_id=action.profile_id,
+                pattern_type=action.pattern_event_type,
+            )
+        except Exception as exc:
+            execution_result = {"status": "error", "error": str(exc)}
+
+    elif action.action_type == "reddit_post":
+        try:
+            from trace.actions.reddit_draft import submit_approved_post
+            execution_result = await submit_approved_post(
+                payload=action.payload,
+                profile_id=action.profile_id,
+            )
+        except Exception as exc:
+            execution_result = {"status": "error", "error": str(exc)}
+
+    return {
+        "status": "approved",
+        "action": action.to_dict(),
+        "execution": execution_result,
+    }
 
 
 @app.post("/approvals/{action_id}/reject")
