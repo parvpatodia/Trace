@@ -115,6 +115,14 @@ class GmailCollector:
         try:
             return await self._collect_via_scalekit(connect_execute_tool)
         except Exception as exc:
+            err_str = str(exc)
+            # Scalekit connector not yet configured in dashboard — expected pre-setup.
+            # Log at DEBUG to avoid 30s spam; fall back to demo stubs silently.
+            if "RESOURCE_NOT_FOUND" in err_str or "failed to get tool" in err_str:
+                _log.debug("GmailCollector: connector not configured yet (%s)", err_str.split('\n')[0])
+                if _DEMO_MODE:
+                    return self._demo_signals()
+                return []
             _log.warning("GmailCollector failed: %s", exc)
             if _DEMO_MODE:
                 return self._demo_signals()

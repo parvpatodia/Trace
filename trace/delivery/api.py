@@ -2476,6 +2476,8 @@ async def mcp_info() -> dict[str, Any]:
             "get_curiosity_topics",
             "get_unresolved_questions",
             "generate_briefing",
+            "get_topic_neighbors",
+            "get_emerging_interests",
             "health",
         ],
         "auth": {
