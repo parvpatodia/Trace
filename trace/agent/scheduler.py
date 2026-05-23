@@ -211,6 +211,7 @@ def build_scheduler() -> Any | None:
         replace_existing=True,
         max_instances=1,
         coalesce=True,
+        misfire_grace_time=_GMAIL_INTERVAL // 2,
     )
 
     _scheduler.add_job(
@@ -221,6 +222,7 @@ def build_scheduler() -> Any | None:
         replace_existing=True,
         max_instances=1,
         coalesce=True,
+        misfire_grace_time=_APIFY_INTERVAL // 2,
     )
 
     _scheduler.add_job(
@@ -231,6 +233,7 @@ def build_scheduler() -> Any | None:
         replace_existing=True,
         max_instances=1,
         coalesce=True,
+        misfire_grace_time=_PATTERN_INTERVAL // 2,
     )
 
     _log.info(

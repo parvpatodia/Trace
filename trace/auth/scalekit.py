@@ -301,5 +301,14 @@ async def connect_execute_tool(
             return dict(result.__dict__)
         return {"raw": str(result)}
     except Exception as exc:
-        _log.warning("Scalekit connect_execute_tool(%s) failed: %s", tool_name, exc)
+        err_str = str(exc)
+        # RESOURCE_NOT_FOUND means the connector isn't set up in the dashboard yet.
+        # Log at DEBUG to avoid spam before the user configures the connector.
+        if "RESOURCE_NOT_FOUND" in err_str or "failed to get tool" in err_str:
+            _log.debug(
+                "Scalekit connect_execute_tool(%s): connector not configured yet (%s)",
+                tool_name, err_str.split('\n')[0],
+            )
+        else:
+            _log.warning("Scalekit connect_execute_tool(%s) failed: %s", tool_name, exc)
         return {}
