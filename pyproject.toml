@@ -75,7 +75,6 @@ omit = [
     # Scheduler and orchestrator are async integration layers — tested in smoke suite.
     "trace/agent/scheduler.py",
     "trace/agent/orchestrator.py",
-    "trace/actions/*",
 ]
 
 [tool.ruff]

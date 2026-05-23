@@ -77,30 +77,40 @@ async def _is_significant(event: PatternEvent, graph: CuriosityGraph) -> bool:
         return True  # fail-open
 
 
-# ── Stub action dispatchers (Phase 3 will fill these in) ─────────────────────
+# ── Tier A action dispatchers ────────────────────────────────────────────────
 
 async def _dispatch_notion(
-    topic_name: str, briefing: str, profile_id: str
+    topic_name: str, briefing: str, profile_id: str, pattern_type: str = ""
 ) -> dict[str, Any]:
-    """Create a Notion page for a topic. Phase 3 implements the real call."""
-    _log.info("[Notion] Would create page for topic=%r profile=%s", topic_name, profile_id)
-    return {"status": "stub", "action": "notion_create_page", "topic": topic_name}
+    """Create a Notion page for a topic via Scalekit Token Vault."""
+    from trace.actions.notion import create_topic_page
+    return await create_topic_page(
+        topic_name=topic_name,
+        briefing=briefing,
+        profile_id=profile_id,
+        pattern_type=pattern_type,
+    )
 
 
 async def _dispatch_calendar(
-    topic_name: str, profile_id: str
+    topic_name: str, briefing: str, profile_id: str, pattern_type: str = ""
 ) -> dict[str, Any]:
-    """Create a calendar reminder. Phase 3 implements the real call."""
-    _log.info("[Calendar] Would create event for topic=%r profile=%s", topic_name, profile_id)
-    return {"status": "stub", "action": "calendar_create_event", "topic": topic_name}
+    """Schedule a deep-dive calendar event via Scalekit Token Vault."""
+    from trace.actions.calendar import schedule_deep_dive
+    return await schedule_deep_dive(
+        topic_name=topic_name,
+        briefing=briefing,
+        profile_id=profile_id,
+        pattern_type=pattern_type,
+    )
 
 
 async def _dispatch_slack(
     message: str, profile_id: str
 ) -> dict[str, Any]:
-    """Post a Slack DM. Phase 3 implements the real call."""
-    _log.info("[Slack] Would send DM: %r profile=%s", message[:80], profile_id)
-    return {"status": "stub", "action": "slack_send_dm", "message": message[:80]}
+    """Post a pattern alert to Slack via Scalekit Token Vault."""
+    from trace.actions.slack import send_pattern_alert
+    return await send_pattern_alert(message=message, profile_id=profile_id)
 
 
 async def _draft_gmail(
@@ -221,8 +231,8 @@ class AgentOrchestrator:
         if event.pattern_type == "emerging_interest":
             # Tier A: Notion + Calendar + Slack (all auto-execute)
             tasks = await asyncio.gather(
-                _dispatch_notion(event.topic_name, briefing, profile_id),
-                _dispatch_calendar(event.topic_name, profile_id),
+                _dispatch_notion(event.topic_name, briefing, profile_id, event.pattern_type),
+                _dispatch_calendar(event.topic_name, briefing, profile_id, event.pattern_type),
                 _dispatch_slack(
                     f"🧠 Trace: New emerging interest — *{event.topic_name}*\n{briefing}",
                     profile_id,
@@ -246,7 +256,7 @@ class AgentOrchestrator:
                     f"{', '.join(event.supporting_topics[:2])}.\n{briefing}",
                     profile_id,
                 ),
-                _dispatch_notion(event.topic_name, briefing, profile_id),
+                _dispatch_notion(event.topic_name, briefing, profile_id, event.pattern_type),
                 return_exceptions=True,
             )
             tier_b = await _draft_reddit(
