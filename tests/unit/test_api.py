@@ -544,20 +544,30 @@ class TestFromUploadEndpoint:
         mock_settings = MagicMock()
         mock_settings.upload_dir = tmp_path / "uploads"
 
+        # Use a valid UUID that just doesn't exist as a file
+        valid_uuid = "00000000-0000-4000-8000-000000000000"
         with patch("trace.delivery.api.get_settings", return_value=mock_settings):
             with TestClient(app, raise_server_exceptions=False) as client:
                 response = client.post(
                     "/newsletter/from-upload",
-                    json={"history_upload_id": "nonexistent-id"},
+                    json={"history_upload_id": valid_uuid},
                 )
         assert response.status_code == 404
+
+    def test_path_traversal_upload_id_returns_400(self) -> None:
+        with TestClient(app, raise_server_exceptions=False) as client:
+            response = client.post(
+                "/newsletter/from-upload",
+                json={"history_upload_id": "../../../etc/passwd"},
+            )
+        assert response.status_code == 400
 
     def test_valid_upload_returns_newsletter(self, tmp_path: Path) -> None:
         from unittest.mock import AsyncMock, MagicMock, patch
 
         upload_dir = tmp_path / "uploads"
         upload_dir.mkdir(parents=True)
-        upload_id = "test-upload-1234"
+        upload_id = "12345678-1234-4234-8234-123456789abc"
         history_file = upload_dir / f"history_{upload_id}.json"
         history_file.write_bytes(b'{"Browser History":[]}')
 
@@ -582,7 +592,7 @@ class TestFromUploadEndpoint:
 
         upload_dir = tmp_path / "uploads"
         upload_dir.mkdir(parents=True)
-        upload_id = "test-upload-5678"
+        upload_id = "abcdef12-abcd-4bcd-8bcd-abcdef123456"
         history_file = upload_dir / f"history_{upload_id}.json"
         history_file.write_bytes(b'{"Browser History":[]}')
 

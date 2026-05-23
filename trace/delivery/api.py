@@ -35,11 +35,14 @@ Pipeline construction:
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from collections import OrderedDict
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", re.IGNORECASE)
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
@@ -662,6 +665,20 @@ function badgeLabel(type) {
   return { weekly_topics: 'This Week', curiosity_debt: 'Curiosity Debt', rabbit_hole: 'Rabbit Hole' }[type] || type;
 }
 
+function esc(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function safeHref(u) {
+  // Only allow http/https URLs in link hrefs to prevent javascript: injection
+  return (typeof u === 'string' && /^https?:\/\//i.test(u)) ? u : '#';
+}
+
 function renderNewsletter(data) {
   document.getElementById('subject').textContent = data.subject_line;
   const dt = new Date(data.generated_at);
@@ -674,16 +691,16 @@ function renderNewsletter(data) {
     const div = document.createElement('div');
     div.className = 'section';
     const urls = s.source_urls.map(u =>
-      `<a href="${u}" target="_blank" rel="noopener">${u}</a>`
+      `<a href="${esc(safeHref(u))}" target="_blank" rel="noopener noreferrer">${esc(u)}</a>`
     ).join('');
     div.innerHTML = `
-      <span class="${badgeClass(s.section_type)}">${badgeLabel(s.section_type)}</span>
-      <h3>${s.title}</h3>
-      <p>${s.content}</p>
+      <span class="${badgeClass(s.section_type)}">${esc(badgeLabel(s.section_type))}</span>
+      <h3>${esc(s.title)}</h3>
+      <p>${esc(s.content)}</p>
       ${urls ? '<div class="sources">' + urls + '</div>' : ''}
       <details class="audit">
         <summary>Why this section?</summary>
-        <div class="audit-body">${s.audit_reasoning}</div>
+        <div class="audit-body">${esc(s.audit_reasoning)}</div>
       </details>`;
     secEl.appendChild(div);
   });
@@ -872,6 +889,11 @@ async def generate_from_upload(
     # Validate inputs before touching settings (settings may be unavailable in some envs)
     if not body.history_upload_id and not body.chatgpt_upload_id and not body.youtube_upload_id:
         raise HTTPException(status_code=400, detail="Provide at least one upload ID")
+
+    # Reject non-UUID upload IDs — prevents path traversal via "../" in the ID
+    for uid in [body.history_upload_id, body.chatgpt_upload_id, body.youtube_upload_id]:
+        if uid is not None and not _UUID_RE.match(uid):
+            raise HTTPException(status_code=400, detail=f"Invalid upload ID format: {uid!r}")
 
     settings = get_settings()
     upload_dir = settings.upload_dir
