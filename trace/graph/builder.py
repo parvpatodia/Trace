@@ -40,6 +40,17 @@ from urllib.parse import urlparse
 from trace.graph.extractor import RawTopicData, TopicExtractor
 from trace.models import CuriosityGraph, CuriosityType, RawSignal, SignalSource, Topic
 
+# Signal source weights — higher = stronger evidence of genuine curiosity.
+# Google search queries and ChatGPT questions are explicit intent; passive page
+# visits are weaker signals. YouTube rewatches and Chrome revisits are in between.
+_BASE_SIGNAL_WEIGHTS: dict[SignalSource, float] = {
+    SignalSource.GOOGLE_TAKEOUT: 1.0,    # upgraded per-signal in _signal_weight()
+    SignalSource.CHATGPT_EXPORT: 1.5,    # explicit questions → strong intent
+    SignalSource.YOUTUBE_TAKEOUT: 1.0,   # upgraded per-signal in _signal_weight()
+    SignalSource.REDDIT_POST: 1.2,
+    SignalSource.REDDIT_SAVED: 1.3,      # saved = higher intent than casual browsing
+}
+
 _log = logging.getLogger(__name__)
 
 _DEFAULT_HALF_LIFE_DAYS: int = 14
@@ -165,6 +176,26 @@ class CuriosityGraphBuilder:
 
         return sampled
 
+    @staticmethod
+    def _signal_weight(signal: RawSignal) -> float:
+        """Return a weight [1.0, 2.0] reflecting how strongly this signal
+        indicates genuine curiosity. Explicit intent (search query, ChatGPT
+        question, stuck YouTube video) scores higher than passive browsing.
+        """
+        meta = signal.metadata or {}
+        base = _BASE_SIGNAL_WEIGHTS.get(signal.source, 1.0)
+        if signal.source == SignalSource.GOOGLE_TAKEOUT:
+            if meta.get("is_search_query"):
+                return 2.0  # explicit search query = direct curiosity intent
+            if meta.get("is_stuck") or meta.get("visit_count", 1) >= 3:
+                return 1.5  # repeatedly visited = strong implicit interest
+        if signal.source == SignalSource.YOUTUBE_TAKEOUT:
+            if meta.get("is_stuck"):
+                return 2.0  # stuck video = unresolved curiosity
+            if meta.get("rewatch_count", 1) > 1:
+                return 1.5  # rewatched = deeper interest
+        return base
+
     def _score_topic(
         self,
         raw: RawTopicData,
@@ -182,11 +213,15 @@ class CuriosityGraphBuilder:
         frequency = len(matched)
         span_days = max(0, (last_seen - first_seen).days)
 
+        # Weighted frequency: explicit curiosity signals count more than passive ones.
+        # Stored in depth_score (always 0.0 otherwise) for use in composite_score().
+        weighted_frequency = sum(self._signal_weight(s) for s in matched)
+
         # Recency: exponential decay from last_seen to now
         days_since = max(0.0, (now - last_seen).total_seconds() / 86400)
         recency_score = min(1.0, math.exp(-self._lambda * days_since))
 
-        # Debt and type
+        # Debt and type — use raw frequency for threshold (not weighted)
         is_recurring = (
             frequency >= self._debt_threshold_occurrences
             and span_days >= self._debt_threshold_days
@@ -212,7 +247,7 @@ class CuriosityGraphBuilder:
             last_seen=last_seen,
             frequency=frequency,
             recency_score=recency_score,
-            depth_score=0.0,
+            depth_score=weighted_frequency,  # repurposed: weighted signal count
             debt_score=debt_score,
             curiosity_type=curiosity_type,
         )

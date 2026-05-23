@@ -17,9 +17,10 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-4-6"
 
     apify_api_token: str = ""
-    # Use a compute-unit-only actor (not a monthly-rental actor) on the free tier.
-    # tri_angle/bing-search-scraper is priced per compute unit (~$0.20/CU).
-    apify_actor_id: str = "tri_angle/bing-search-scraper"
+    # apify/google-search-scraper is the official Apify-maintained actor.
+    # The community tri_angle/bing-search-scraper was replaced because Bing
+    # aggressively blocks shared datacenter IPs, returning 0 results on every run.
+    apify_actor_id: str = "apify/google-search-scraper"
     reddit_client_id: str = ""
     reddit_client_secret: str = ""
     reddit_user_agent: str = "trace/0.1.0"

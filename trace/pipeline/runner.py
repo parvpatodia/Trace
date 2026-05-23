@@ -262,6 +262,36 @@ class TracePipeline:
             await self._write_audit_entries(final, result, user_id, user_email)
         return result
 
+    async def run_from_graph(
+        self,
+        graph: CuriosityGraph,
+        user_id: str = "",
+        user_email: str = "",
+    ) -> PipelineResult:
+        """Generate a fresh newsletter from a previously built CuriosityGraph.
+
+        Skips signal collection and topic extraction (stages 1-2). Runs only
+        scrape_articles → assemble_context → compose_newsletter (stages 3-5).
+        This enables daily newsletter regeneration without re-uploading history:
+        the user's curiosity interests are preserved from their initial upload,
+        while the articles are freshly scraped from today's content.
+        """
+        scrape = await self._node_scrape_articles({"graph": graph, "errors": []})
+        ctx = await self._node_assemble_context({
+            "graph": graph,
+            "articles": scrape["articles"],
+        })
+        nl = await self._node_compose_newsletter({"context": ctx["context"]})
+        return PipelineResult(
+            newsletter=nl["newsletter"],
+            graph=graph,
+            collected_signals=(),
+            errors=scrape["errors"],
+            completed_at=datetime.now(timezone.utc),
+            user_id=user_id,
+            user_email=user_email,
+        )
+
     async def _write_audit_entries(
         self,
         final: dict,

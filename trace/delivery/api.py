@@ -52,6 +52,7 @@ from pydantic import BaseModel
 
 from trace.auth.scalekit import UserClaims, _require_client, build_login_url, exchange_code, verify_token
 from trace.config import get_settings
+from trace.models import CuriosityGraph
 from trace.pipeline.runner import PipelineError, PipelineResult, TracePipeline
 
 _log = logging.getLogger(__name__)
@@ -59,6 +60,12 @@ _log = logging.getLogger(__name__)
 # In-memory newsletter cache — last 20 newsletters (LRU-style)
 _NEWSLETTER_CACHE: OrderedDict[str, dict] = OrderedDict()
 _CACHE_MAX = 20
+
+# Curiosity profile cache — stores CuriosityGraph (NOT raw signals) for daily
+# newsletter regeneration without re-uploading browsing history. Only inferred
+# topic names + scores are stored, never raw browsing/conversation data.
+_PROFILE_CACHE: OrderedDict[str, CuriosityGraph] = OrderedDict()
+_PROFILE_CACHE_MAX = 50
 
 
 # ── Request / response models ─────────────────────────────────────────────────
@@ -80,6 +87,12 @@ class GenerateResponse(BaseModel):
     generated_at: str
     errors: list[str]
     generated_for: str = ""
+    # profile_id: opaque token that stores the CuriosityGraph (not raw data).
+    # Present after a full pipeline run. Use POST /newsletter/regenerate/{profile_id}
+    # to generate a fresh newsletter from the same interests without re-uploading.
+    profile_id: str = ""
+    # topic_names: human-readable curiosity topics inferred from the user's signals.
+    topic_names: list[str] = []
 
 
 class UploadResponse(BaseModel):
@@ -254,6 +267,19 @@ def _store_newsletter(response: GenerateResponse) -> None:
     _NEWSLETTER_CACHE[response.id] = response.model_dump()
     if len(_NEWSLETTER_CACHE) > _CACHE_MAX:
         _NEWSLETTER_CACHE.popitem(last=False)
+
+
+def _store_profile(graph: CuriosityGraph) -> str:
+    """Cache the CuriosityGraph and return a new profile_id UUID.
+
+    Only inferred topic names + scores are stored — never raw browsing signals.
+    The profile lets users regenerate a fresh newsletter daily without re-uploading.
+    """
+    profile_id = str(uuid.uuid4())
+    _PROFILE_CACHE[profile_id] = graph
+    if len(_PROFILE_CACHE) > _PROFILE_CACHE_MAX:
+        _PROFILE_CACHE.popitem(last=False)
+    return profile_id
 
 
 # ── FastAPI app ───────────────────────────────────────────────────────────────
@@ -526,6 +552,43 @@ _FRONTEND_HTML = """<!DOCTYPE html>
   }
   .share-link a { color: var(--accent); text-decoration: none; }
   .share-link a:hover { text-decoration: underline; }
+  .curiosity-profile {
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.25rem;
+    background: rgba(52,211,153,0.05);
+    border: 1px solid rgba(52,211,153,0.2);
+    border-radius: 8px;
+  }
+  .curiosity-profile .profile-label {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
+    color: #34d399; font-weight: 600; margin-bottom: 0.6rem;
+  }
+  .topic-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
+  .topic-chip {
+    display: inline-block; font-size: 0.75rem;
+    padding: 0.25em 0.7em; border-radius: 12px;
+    background: rgba(99,102,241,0.15); color: #a5b4fc;
+    border: 1px solid rgba(99,102,241,0.3);
+  }
+  .regen-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.5rem; }
+  .regen-bar .regen-link {
+    font-size: 0.78rem; color: var(--muted);
+    font-family: monospace;
+  }
+  .btn-regen {
+    padding: 0.4rem 1rem;
+    background: rgba(52,211,153,0.15);
+    border: 1px solid rgba(52,211,153,0.4);
+    border-radius: 6px;
+    color: #34d399;
+    font-size: 0.82rem; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-regen:hover:not(:disabled) {
+    background: rgba(52,211,153,0.25);
+    border-color: #34d399;
+  }
+  .btn-regen:disabled { opacity: 0.5; cursor: not-allowed; }
   .privacy-note {
     font-size: 0.78rem; color: var(--muted);
     background: rgba(255,255,255,0.03);
@@ -635,6 +698,7 @@ _FRONTEND_HTML = """<!DOCTYPE html>
       <h2 id="subject"></h2>
       <div class="meta" id="meta"></div>
     </div>
+    <div id="curiosity-profile"></div>
     <div class="download-bar">
       <button onclick="downloadHtml()">⬇ Download HTML</button>
       <button onclick="downloadText()">⬇ Download Plain Text</button>
@@ -764,12 +828,61 @@ function downloadText() {
   downloadBlob(newsletterData.plain_text, `trace-${subj}.txt`, 'text/plain');
 }
 
+async function regenerate() {
+  if (!newsletterData || !newsletterData.profile_id) return;
+  const btn = document.getElementById('regen-btn');
+  if (btn) btn.disabled = true;
+  document.getElementById('result').style.display = 'none';
+  setLoading(true);
+  stageIdx = 0;
+  tickStage();
+  try {
+    const r = await fetch('/newsletter/regenerate/' + encodeURIComponent(newsletterData.profile_id), {
+      method: 'POST',
+    });
+    if (!r.ok) {
+      let msg = 'Regeneration failed';
+      try { const e = await r.json(); msg = e.detail || msg; } catch { msg = await r.text().catch(() => msg); }
+      throw new Error(msg);
+    }
+    const data = await r.json();
+    stopStages();
+    setLoading(false);
+    setStatus('');
+    renderNewsletter(data);
+  } catch (err) {
+    stopStages();
+    setLoading(false);
+    setStatus('Error: ' + err.message, true);
+    if (btn) btn.disabled = false;
+    document.getElementById('result').style.display = 'block';
+  }
+}
+
 function renderNewsletter(data) {
   newsletterData = data;
   document.getElementById('subject').textContent = data.subject_line;
   const dt = new Date(data.generated_at);
   const forStr = data.generated_for ? ' · for ' + data.generated_for : '';
   document.getElementById('meta').textContent = dt.toLocaleString() + forStr;
+
+  // Curiosity profile: show inferred topics + daily regen link
+  const profileEl = document.getElementById('curiosity-profile');
+  if (data.topic_names && data.topic_names.length > 0) {
+    const chips = data.topic_names.map(t => `<span class="topic-chip">${esc(t)}</span>`).join('');
+    const regenHtml = data.profile_id ? `
+      <div class="regen-bar">
+        <button class="btn-regen" id="regen-btn" onclick="regenerate()">↺ Regenerate with today's articles</button>
+        <span class="regen-link">Bookmark: <a href="/newsletter/regenerate/${esc(data.profile_id)}" onclick="return false;">/regenerate/${esc(data.profile_id.substring(0,8))}…</a></span>
+      </div>` : '';
+    profileEl.innerHTML = `<div class="curiosity-profile">
+      <div class="profile-label">Your Curiosity Profile · ${data.topic_names.length} topic${data.topic_names.length !== 1 ? 's' : ''} inferred</div>
+      <div class="topic-chips">${chips}</div>
+      ${regenHtml}
+    </div>`;
+  } else {
+    profileEl.innerHTML = '';
+  }
 
   // Share link
   const shareCont = document.getElementById('share-link-container');
@@ -1069,6 +1182,10 @@ async def generate_from_upload(
                     _log.warning("Could not delete uploaded file %s: %s", p.name, exc)
 
     newsletter = result.newsletter
+    # Store the curiosity graph (not raw signals) for daily regeneration
+    profile_id = _store_profile(result.graph)
+    topic_names = [t.name for t in result.graph.topics]
+
     response = GenerateResponse(
         id=newsletter.id,
         subject_line=newsletter.subject_line,
@@ -1087,6 +1204,8 @@ async def generate_from_upload(
         generated_at=newsletter.generated_at.isoformat(),
         errors=result.errors,
         generated_for=current_user.display_name if current_user else "",
+        profile_id=profile_id,
+        topic_names=topic_names,
     )
     _store_newsletter(response)
     return response
@@ -1139,6 +1258,76 @@ async def get_newsletter(newsletter_id: str) -> GenerateResponse:
     if newsletter_id not in _NEWSLETTER_CACHE:
         raise HTTPException(status_code=404, detail="Newsletter not found")
     return GenerateResponse(**_NEWSLETTER_CACHE[newsletter_id])
+
+
+@app.post("/newsletter/regenerate/{profile_id}", response_model=GenerateResponse)
+async def regenerate_newsletter(
+    profile_id: str,
+    current_user: UserClaims | None = Depends(get_optional_user),
+) -> GenerateResponse:
+    """Generate a fresh newsletter from a stored curiosity profile.
+
+    No file upload required. The user's curiosity interests (inferred topics)
+    are stored from their initial upload. This endpoint runs only stages 3-5:
+    scrape today's articles → assemble context → compose newsletter.
+
+    Use this for daily newsletter generation after the first upload.
+    profile_id is returned in the initial GenerateResponse.
+    """
+    if not _UUID_RE.match(profile_id):
+        raise HTTPException(status_code=400, detail="Invalid profile ID format")
+
+    graph = _PROFILE_CACHE.get(profile_id)
+    if graph is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Profile not found or expired. Please re-upload your history file.",
+        )
+
+    pipeline = _build_pipeline_from_settings()
+    if pipeline is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Pipeline could not be built — check ANTHROPIC_API_KEY",
+        )
+
+    try:
+        result: PipelineResult = await pipeline.run_from_graph(
+            graph=graph,
+            user_id=current_user.user_id if current_user else "",
+            user_email=current_user.email if current_user else "",
+        )
+    except PipelineError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        _log.exception("Unexpected pipeline error in regenerate")
+        raise HTTPException(status_code=503, detail=f"Pipeline error: {e}") from e
+
+    newsletter = result.newsletter
+    topic_names = [t.name for t in graph.topics]
+    response = GenerateResponse(
+        id=newsletter.id,
+        subject_line=newsletter.subject_line,
+        sections=[
+            SectionResponse(
+                title=s.title,
+                section_type=s.section_type,
+                content=s.content,
+                source_urls=s.source_urls,
+                audit_reasoning=s.audit_reasoning,
+            )
+            for s in newsletter.sections
+        ],
+        plain_text=newsletter.plain_text,
+        html=newsletter.html,
+        generated_at=newsletter.generated_at.isoformat(),
+        errors=result.errors,
+        generated_for=current_user.display_name if current_user else "",
+        profile_id=profile_id,
+        topic_names=topic_names,
+    )
+    _store_newsletter(response)
+    return response
 
 
 @app.get("/auth/login", response_model=LoginResponse)

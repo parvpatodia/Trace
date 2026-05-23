@@ -1,6 +1,16 @@
 """
 ApifyScraper — fetches web articles via an Apify actor using the native async client.
 
+DEFAULT ACTOR: apify/google-search-scraper
+  This is the official Apify-maintained Google Search scraper. It is used instead
+  of the community `tri_angle/bing-search-scraper` because:
+  1. Bing aggressively blocks datacenter IP ranges used by shared Apify actor pools.
+     The Bing scraper returns 0 results after the 45s timeout on every run.
+  2. `apify/google-search-scraper` is maintained by Apify engineering with built-in
+     proxy rotation and anti-detection, making it significantly more reliable.
+  3. Google Search results are higher quality and more semantically diverse for
+     newsletter content than Bing results.
+
 WHY ApifyClientAsync INSTEAD OF ApifyClient + asyncio.to_thread:
   ApifyClientAsync._wait_for_finish uses await asyncio.sleep(0.25) between
   status polls (verified from SDK source). This means asyncio.wait_for cancels
@@ -11,11 +21,16 @@ TWO TIMEOUT LAYERS:
   timeout_secs=45  — Apify platform kills the actor after 45s (server-side).
   wait_secs=45     — SDK stops waiting after 45s and returns what it has.
   asyncio.wait_for(timeout=60) — final asyncio-level safety net.
-  The first two are sufficient; the third guards against any SDK edge cases.
 
 WHY max_results CAPPED AT 10:
   Apify charges per actor compute unit. 5-10 results per topic is sufficient
   for a newsletter without proportional quality improvement from more.
+
+WHY _flatten_items():
+  apify/google-search-scraper returns one dataset item per search query, with
+  organic results nested inside an "organicResults" array. The legacy Bing
+  scraper returned one item per result (flat). _flatten_items() normalises
+  both formats so _parse_item receives individual result dicts in both cases.
 """
 
 from __future__ import annotations
@@ -31,7 +46,7 @@ from trace.models import ContentSource, ScrapedArticle, Topic
 from trace.scraper.base import ArticleScraper, ScraperError
 
 _log = logging.getLogger(__name__)
-_DEFAULT_ACTOR = "tri_angle/bing-search-scraper"
+_DEFAULT_ACTOR = "apify/google-search-scraper"
 
 
 class ApifyScraper(ArticleScraper):
@@ -40,7 +55,7 @@ class ApifyScraper(ArticleScraper):
 
     Parameters:
         api_token:  Apify API token (required).
-        actor_id:   Apify actor ID (default: tri_angle/bing-search-scraper).
+        actor_id:   Apify actor ID (default: apify/google-search-scraper).
     """
 
     source = ContentSource.WEB_SEARCH
@@ -77,7 +92,12 @@ class ApifyScraper(ArticleScraper):
         run = await self._client.actor(self._actor_id).call(
             run_input={
                 "queries": query,
+                # apify/google-search-scraper uses resultsPerPage + maxPagesPerQuery.
+                # Legacy tri_angle/bing-search-scraper uses maxResultsPerQuery.
+                # Both keys are passed; unknown keys are silently ignored by actors.
+                "resultsPerPage": limit,
                 "maxResultsPerQuery": limit,
+                "maxPagesPerQuery": 1,
             },
             timeout_secs=45,
             wait_secs=45,
@@ -89,10 +109,32 @@ class ApifyScraper(ArticleScraper):
         if not dataset_id:
             _log.warning("Apify run missing defaultDatasetId for query %r", query)
             return []
-        items: list[dict[str, Any]] = []
+        raw_items: list[dict[str, Any]] = []
         async for item in self._client.dataset(dataset_id).iterate_items():
-            items.append(item)
-        return items
+            raw_items.append(item)
+        return self._flatten_items(raw_items)
+
+    def _flatten_items(self, raw_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Normalise actor output: handle both flat items and nested result arrays.
+
+        apify/google-search-scraper returns one item per query with results nested
+        inside "organicResults". Flat-item actors (e.g. legacy Bing scraper) return
+        one item per result with top-level "title"/"url" keys.
+        """
+        flat: list[dict[str, Any]] = []
+        for item in raw_items:
+            if not isinstance(item, dict):
+                continue
+            # Nested format: apify/google-search-scraper
+            if "organicResults" in item and isinstance(item["organicResults"], list):
+                flat.extend(r for r in item["organicResults"] if isinstance(r, dict))
+            # Nested format: some actors use "items" key
+            elif "items" in item and isinstance(item["items"], list):
+                flat.extend(r for r in item["items"] if isinstance(r, dict))
+            # Flat format: item is already a result (legacy Bing scraper)
+            elif "title" in item or "url" in item:
+                flat.append(item)
+        return flat
 
     def _parse(
         self,
@@ -119,15 +161,30 @@ class ApifyScraper(ArticleScraper):
             return None
 
         title: str = (item.get("title") or "").strip()
-        url: str = (item.get("url") or "").strip()
+        url: str = (item.get("url") or item.get("link") or "").strip()
 
         if not title or not url:
             return None
         if not (url.startswith("http://") or url.startswith("https://")):
             return None
 
-        description: str = (item.get("description") or "").strip()
-        published_at = _parse_date(item.get("date"))
+        # Different actors use different field names for the summary/snippet
+        description: str = (
+            item.get("description")
+            or item.get("snippet")
+            or item.get("text")
+            or item.get("summary")
+            or ""
+        ).strip()
+
+        # Different actors use different field names for publication date
+        raw_date = (
+            item.get("date")
+            or item.get("pubDate")
+            or item.get("publishedAt")
+            or item.get("published_at")
+        )
+        published_at = _parse_date(raw_date)
         relevance_score = max(0.0, 1.0 - rank / max(1, total))
 
         return ScrapedArticle(
@@ -147,6 +204,6 @@ def _parse_date(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except (ValueError, TypeError):
         return None
