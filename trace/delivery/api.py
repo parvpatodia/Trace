@@ -1053,7 +1053,7 @@ _FRONTEND_HTML = """<!DOCTYPE html>
 <div class="card" id="graph-card" style="display:none;">
   <div class="card-title" style="color:var(--accent);">Curiosity Graph &mdash; Force-Directed</div>
   <p style="color:var(--muted);font-size:0.8rem;margin-bottom:0.8rem;">
-    Topics as nodes · Semantic edges (cosine &gt;0.65) · Colour = community · Size = blended score
+    Topics as nodes · Semantic edges (cosine &gt;0.35) · Colour = community · Size = blended score
   </p>
   <div id="d3-graph" style="width:100%;height:400px;background:var(--surface2,#1e293b);border-radius:8px;border:1px solid var(--border2,#334155);overflow:hidden;"></div>
   <div style="font-size:0.72rem;color:var(--muted);margin-top:0.5rem;">
@@ -1471,8 +1471,10 @@ async function connectService(connectionName) {
     if (data.link) {
       window.open(data.link, '_blank', 'width=600,height=700');
       if (statusEl) statusEl.textContent = '⟳ Complete in popup';
+    } else if (data.status === 'connector_not_found') {
+      if (statusEl) statusEl.textContent = '⚠ Connector not set up in Scalekit dashboard yet';
     } else if (data.message) {
-      if (statusEl) statusEl.textContent = data.message.slice(0, 60);
+      if (statusEl) statusEl.textContent = data.message.slice(0, 70);
     } else {
       if (statusEl) statusEl.textContent = 'No link returned';
     }
@@ -2243,10 +2245,17 @@ async def auth_connect(
         connection_name=connection_name,
         redirect_url=redirect_url,
     )
+    from trace.auth.scalekit import get_scalekit_client
     if not link:
+        if get_scalekit_client() is None:
+            return {
+                "status": "unconfigured",
+                "message": "Scalekit is not configured — set SCALEKIT_ENV_URL, SCALEKIT_CLIENT_ID, SCALEKIT_CLIENT_SECRET",
+            }
         return {
-            "status": "unconfigured",
-            "message": "Scalekit is not configured — set SCALEKIT_ENV_URL, SCALEKIT_CLIENT_ID, SCALEKIT_CLIENT_SECRET",
+            "status": "connector_not_found",
+            "message": f"Connector '{connection_name}' is not registered in your Scalekit workspace. "
+                       f"Go to app.scalekit.com → Connect → Connectors → Add '{connection_name}'.",
         }
     return {"link": link, "status": "ok", "connection_name": connection_name}
 
