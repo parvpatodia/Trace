@@ -675,8 +675,9 @@ function esc(str) {
 }
 
 function safeHref(u) {
-  // Only allow http/https URLs in link hrefs to prevent javascript: injection
-  return (typeof u === 'string' && /^https?:\/\//i.test(u)) ? u : '#';
+  if (typeof u !== 'string') return '#';
+  const l = u.toLowerCase();
+  return (l.startsWith('http://') || l.startsWith('https://')) ? u : '#';
 }
 
 function renderNewsletter(data) {
