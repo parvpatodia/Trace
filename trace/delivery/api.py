@@ -1950,6 +1950,57 @@ async def auth_connect(
     return {"link": link, "status": "ok", "connection_name": connection_name}
 
 
+@app.get("/graph.json")
+async def graph_json(profile_id: str = "default") -> dict[str, Any]:
+    """Return the curiosity graph as a D3 force-directed graph JSON.
+
+    Format: {"nodes": [{"id": str, "score": float, "community": int, ...}],
+              "links": [{"source": str, "target": str, "value": float}]}
+
+    Used by the D3 force-directed visualization on the frontend.
+    Computation is cached for 60 seconds (enrichment is CPU-bound).
+    """
+    from trace.graph.graph_algo import enrich_graph
+    from trace.mcp.server import _load_graph_async
+
+    graph = await _load_graph_async(profile_id)
+    if graph is None or graph.is_empty():
+        return {"nodes": [], "links": [], "profile_id": profile_id, "error": "no_graph"}
+
+    enrichment = enrich_graph(graph)
+    topic_map = {t.name: t for t in graph.topics}
+
+    nodes = [
+        {
+            "id": t.name,
+            "score": round(t.composite_score(), 4),
+            "blended_score": round(enrichment.blended_scores.get(t.name, t.composite_score()), 4),
+            "pagerank": round(enrichment.pagerank.get(t.name, 0.0), 4),
+            "community": enrichment.communities.get(t.name, 0),
+            "curiosity_type": t.curiosity_type.value,
+            "frequency": t.frequency,
+            "span_days": t.span_days(),
+        }
+        for t in graph.topics
+    ]
+
+    links = [
+        {"source": a, "target": b, "value": round(w, 4)}
+        for a, b, w in enrichment.edges
+    ]
+
+    return {
+        "nodes": nodes,
+        "links": links,
+        "profile_id": profile_id,
+        "stats": {
+            "node_count": len(nodes),
+            "link_count": len(links),
+            "community_count": len(set(enrichment.communities.values())),
+        },
+    }
+
+
 @app.get("/agent/status")
 async def agent_status() -> dict[str, Any]:
     """Return the autonomous agent scheduler status — jobs, intervals, demo mode."""

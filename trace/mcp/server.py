@@ -392,6 +392,105 @@ async def generate_briefing(
 
 
 @mcp.tool()
+async def get_topic_neighbors(
+    topic: str,
+    profile_id: str = "default",
+    n: int = 5,
+) -> dict[str, Any]:
+    """Return the semantically nearest topics to a given topic.
+
+    Uses sentence-transformers cosine similarity (all-MiniLM-L6-v2) and
+    PageRank-blended scoring. Useful for agents to discover adjacent interests
+    the user may not have explicitly expressed.
+
+    Args:
+        topic:      The topic name to find neighbors for.
+        profile_id: User profile to query.
+        n:          Maximum neighbors to return (1–10).
+
+    Returns:
+        {"neighbors": [{"name": str, "similarity": float, "community_id": int}],
+         "topic": str, "community_id": int, "community_members": [str]}
+    """
+    from trace.graph.graph_algo import enrich_graph
+
+    n = max(1, min(10, n))
+    graph = await _load_graph_async(profile_id)
+    if graph is None or graph.is_empty():
+        return {"neighbors": [], "topic": topic, "error": "no_graph"}
+
+    enrichment = enrich_graph(graph)
+    neighbors = enrichment.neighbors(topic)[:n]
+    community_id = enrichment.communities.get(topic, -1)
+
+    return {
+        "neighbors": [
+            {
+                "name": name,
+                "similarity": round(sim, 4),
+                "community_id": enrichment.communities.get(name, -1),
+            }
+            for name, sim in neighbors
+        ],
+        "topic": topic,
+        "community_id": community_id,
+        "community_members": enrichment.community_members(community_id) if community_id >= 0 else [],
+        "profile_id": profile_id,
+    }
+
+
+@mcp.tool()
+async def get_emerging_interests(
+    profile_id: str = "default",
+    n: int = 5,
+) -> dict[str, Any]:
+    """Return topics with the highest PageRank-blended score.
+
+    This is a richer signal than raw composite_score: it considers how well a
+    topic is connected to other high-scoring topics in the curiosity graph.
+    A "hub topic" (central to many related interests) scores higher here than
+    an isolated but frequently visited niche topic.
+
+    Args:
+        profile_id: User profile.
+        n:          Max topics to return (1–10).
+
+    Returns:
+        {"topics": [{"name": str, "blended_score": float, "pagerank": float,
+                      "composite_score": float, "community_id": int}],
+         "profile_id": str, "graph_enrichment": {"edge_count": int, ...}}
+    """
+    from trace.graph.graph_algo import enrich_graph
+
+    n = max(1, min(10, n))
+    graph = await _load_graph_async(profile_id)
+    if graph is None or graph.is_empty():
+        return {"topics": [], "profile_id": profile_id, "error": "no_graph"}
+
+    enrichment = enrich_graph(graph)
+    topic_map = {t.name: t for t in graph.topics}
+    top = enrichment.top_topics(n)
+
+    return {
+        "topics": [
+            {
+                "name": name,
+                "blended_score": round(score, 4),
+                "pagerank": round(enrichment.pagerank.get(name, 0.0), 4),
+                "composite_score": round(topic_map[name].composite_score(), 4) if name in topic_map else 0.0,
+                "community_id": enrichment.communities.get(name, -1),
+            }
+            for name, score in top
+        ],
+        "profile_id": profile_id,
+        "graph_enrichment": {
+            "edge_count": len(enrichment.edges),
+            "community_count": len(set(enrichment.communities.values())),
+        },
+    }
+
+
+@mcp.tool()
 async def health() -> dict[str, Any]:
     """Probe the full sponsor stack — useful for verifying the demo setup.
 
@@ -437,6 +536,8 @@ async def health() -> dict[str, Any]:
             "get_curiosity_topics",
             "get_unresolved_questions",
             "generate_briefing",
+            "get_topic_neighbors",
+            "get_emerging_interests",
             "health",
         ],
         "curiosity_os_tagline": (

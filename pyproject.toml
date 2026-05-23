@@ -28,6 +28,9 @@ dependencies = [
     "redis>=5.0,<6.0",
     "pyjwt[crypto]>=2.4,<3.0",
     "apscheduler>=3.10,<4.0",
+    "sentence-transformers>=2.7,<4.0",
+    "networkx>=3.3,<4.0",
+    "python-louvain>=0.16,<1.0",
 ]
 
 [project.optional-dependencies]
