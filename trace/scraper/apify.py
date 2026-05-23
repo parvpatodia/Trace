@@ -1,33 +1,21 @@
 """
-ApifyScraper — fetches web articles via the Apify Bing Search Scraper actor.
+ApifyScraper — fetches web articles via an Apify actor using the native async client.
 
-Uses the `apify/bing-search-scraper` actor on Apify's platform to search Bing
-for articles about a curiosity topic.  Results are converted into
-ScrapedArticle objects and merged with ArXiv, HN, and Reddit results.
+WHY ApifyClientAsync INSTEAD OF ApifyClient + asyncio.to_thread:
+  ApifyClientAsync._wait_for_finish uses await asyncio.sleep(0.25) between
+  status polls (verified from SDK source). This means asyncio.wait_for cancels
+  it correctly at the next await point — no zombie OS threads.
+  ApifyClient (sync) uses time.sleep, so asyncio.wait_for cannot cancel it.
 
-Actor: apify/bing-search-scraper
-  Input:
-    queries:           str  — the search query (one per line for multi-query)
-    maxResultsPerQuery: int — maximum number of results to return
-  Output items (JSONL from the default dataset):
-    title:       str  — page title
-    url:         str  — canonical page URL
-    description: str  — search-result snippet (used as summary)
-    date:        str  — publication date ISO-8601 (may be absent)
-
-WHY APIFY OVER DIRECT BING SEARCH API:
-  Bing Search API v7 requires an Azure Cognitive Services subscription.
-  Apify's actor wraps Bing's web UI, giving equivalent results without
-  additional cloud accounts — only an Apify token is needed.
-
-WHY asyncio.to_thread:
-  The Apify Python client is synchronous.  Wrapping actor runs in
-  asyncio.to_thread keeps the pipeline's async event loop unblocked.
+TWO TIMEOUT LAYERS:
+  timeout_secs=45  — Apify platform kills the actor after 45s (server-side).
+  wait_secs=45     — SDK stops waiting after 45s and returns what it has.
+  asyncio.wait_for(timeout=60) — final asyncio-level safety net.
+  The first two are sufficient; the third guards against any SDK edge cases.
 
 WHY max_results CAPPED AT 10:
-  Apify charges per actor compute unit.  For a newsletter, 5-10 high-
-  quality web articles per topic is sufficient.  Going higher raises cost
-  without proportional quality improvement.
+  Apify charges per actor compute unit. 5-10 results per topic is sufficient
+  for a newsletter without proportional quality improvement from more.
 """
 
 from __future__ import annotations
@@ -37,7 +25,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from apify_client import ApifyClient
+from apify_client import ApifyClientAsync
 
 from trace.models import ContentSource, ScrapedArticle, Topic
 from trace.scraper.base import ArticleScraper, ScraperError
@@ -48,11 +36,11 @@ _DEFAULT_ACTOR = "tri_angle/bing-search-scraper"
 
 class ApifyScraper(ArticleScraper):
     """
-    Fetches web articles about a topic using Apify's Bing Search Scraper.
+    Fetches web articles about a topic using an Apify actor.
 
     Parameters:
         api_token:  Apify API token (required).
-        actor_id:   Apify actor to use (default: apify/bing-search-scraper).
+        actor_id:   Apify actor ID (default: tri_angle/bing-search-scraper).
     """
 
     source = ContentSource.WEB_SEARCH
@@ -64,7 +52,7 @@ class ApifyScraper(ArticleScraper):
     ) -> None:
         if not api_token:
             raise ValueError("ApifyScraper: api_token must not be empty.")
-        self._client = ApifyClient(token=api_token)
+        self._client = ApifyClientAsync(token=api_token)
         self._actor_id = actor_id
 
     async def scrape(
@@ -72,13 +60,11 @@ class ApifyScraper(ArticleScraper):
     ) -> list[ScrapedArticle]:
         try:
             items = await asyncio.wait_for(
-                asyncio.to_thread(
-                    self._run_actor, topic.name, min(max_results, 10)
-                ),
-                timeout=90,  # Bing soft-blocks can cause infinite retries without this
+                self._run_actor(topic.name, min(max_results, 10)),
+                timeout=60,
             )
         except asyncio.TimeoutError:
-            _log.warning("Apify actor timed out after 90s for topic %r — skipping", topic.name)
+            _log.warning("Apify actor timed out for topic %r — skipping", topic.name)
             return []
         except Exception as exc:
             raise ScraperError(
@@ -87,15 +73,14 @@ class ApifyScraper(ArticleScraper):
             ) from exc
         return self._parse(items, topic, max_results)
 
-    # ── Synchronous helpers (called via asyncio.to_thread) ────────────────────
-
-    def _run_actor(self, query: str, limit: int) -> list[dict[str, Any]]:
-        run = self._client.actor(self._actor_id).call(
+    async def _run_actor(self, query: str, limit: int) -> list[dict[str, Any]]:
+        run = await self._client.actor(self._actor_id).call(
             run_input={
                 "queries": query,
                 "maxResultsPerQuery": limit,
             },
-            timeout_secs=60,  # hard cap on actor wall-clock time
+            timeout_secs=45,
+            wait_secs=45,
         )
         if not run:
             _log.warning("Apify actor run returned None for query %r", query)
@@ -104,7 +89,10 @@ class ApifyScraper(ArticleScraper):
         if not dataset_id:
             _log.warning("Apify run missing defaultDatasetId for query %r", query)
             return []
-        return list(self._client.dataset(dataset_id).iterate_items())
+        items: list[dict[str, Any]] = []
+        async for item in self._client.dataset(dataset_id).iterate_items():
+            items.append(item)
+        return items
 
     def _parse(
         self,

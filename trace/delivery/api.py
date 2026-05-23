@@ -206,15 +206,16 @@ def _build_pipeline_from_settings(
             except Exception as exc:
                 _log.warning("Reddit scraper skipped: %s", exc)
 
-        # Apify/Bing scraper disabled: Bing consistently soft-blocks the actor's
-        # IP pool making every run hang until timeout. ArXiv + HN cover the demo well.
-        # Re-enable when switching to a non-Bing Apify actor.
-        # if settings.apify_api_token:
-        #     try:
-        #         from trace.scraper.apify import ApifyScraper
-        #         scrapers.append(ApifyScraper(...))
-        #     except Exception as exc:
-        #         _log.warning("Apify scraper skipped: %s", exc)
+        if settings.apify_api_token:
+            try:
+                from trace.scraper.apify import ApifyScraper
+                scrapers.append(ApifyScraper(
+                    api_token=settings.apify_api_token,
+                    actor_id=settings.apify_actor_id,
+                ))
+                _log.info("Apify scraper active (actor: %s)", settings.apify_actor_id)
+            except Exception as exc:
+                _log.warning("Apify scraper skipped: %s", exc)
 
         # ── Pipeline components ──────────────────────────────────────────────
         extractor = TopicExtractor(client=anthropic_client, model=settings.anthropic_model)
