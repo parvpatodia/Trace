@@ -302,9 +302,13 @@ async def connect_execute_tool(
         return {"raw": str(result)}
     except Exception as exc:
         err_str = str(exc)
-        # RESOURCE_NOT_FOUND means the connector isn't set up in the dashboard yet.
-        # Log at DEBUG to avoid spam before the user configures the connector.
-        if "RESOURCE_NOT_FOUND" in err_str or "failed to get tool" in err_str:
+        # RESOURCE_NOT_FOUND / NOT_FOUND = connector or account not yet configured.
+        # Log at DEBUG to avoid spam before the user sets up the connector.
+        if (
+            "RESOURCE_NOT_FOUND" in err_str
+            or "failed to get tool" in err_str
+            or ("NOT_FOUND" in err_str and "connected account not found" in err_str)
+        ):
             _log.debug(
                 "Scalekit connect_execute_tool(%s): connector not configured yet (%s)",
                 tool_name, err_str.split('\n')[0],
