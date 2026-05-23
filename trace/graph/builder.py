@@ -44,12 +44,16 @@ from trace.models import CuriosityGraph, CuriosityType, RawSignal, SignalSource,
 # Google search queries and ChatGPT questions are explicit intent; passive page
 # visits are weaker signals. YouTube rewatches and Chrome revisits are in between.
 _BASE_SIGNAL_WEIGHTS: dict[SignalSource, float] = {
+    SignalSource.CHROME_HISTORY: 0.8,    # passive browsing (no search intent)
     SignalSource.GOOGLE_TAKEOUT: 1.0,    # upgraded per-signal in _signal_weight()
     SignalSource.CHATGPT_EXPORT: 1.5,    # explicit questions → strong intent
     SignalSource.YOUTUBE_TAKEOUT: 1.0,   # upgraded per-signal in _signal_weight()
     SignalSource.REDDIT_POST: 1.2,
     SignalSource.REDDIT_SAVED: 1.3,      # saved = higher intent than casual browsing
 }
+
+# Sources that carry explicit user intent — prioritised for signal_samples
+_EXPLICIT_SOURCES = frozenset({SignalSource.CHATGPT_EXPORT, SignalSource.GOOGLE_TAKEOUT})
 
 _log = logging.getLogger(__name__)
 
@@ -239,6 +243,15 @@ class CuriosityGraphBuilder:
 
         source_types = frozenset(s.source for s in matched)
 
+        # Representative signal contents: ChatGPT questions and search queries
+        # first (most descriptive of intent), then by content length. Capped at
+        # 2 × 200 chars so they fit in the newsletter prompt without bloat.
+        sorted_for_samples = sorted(
+            matched,
+            key=lambda s: (0 if s.source in _EXPLICIT_SOURCES else 1, -len(s.content)),
+        )
+        signal_samples = tuple(s.content[:200] for s in sorted_for_samples[:2])
+
         return Topic(
             name=raw["name"],
             aliases=raw["aliases"],
@@ -251,6 +264,7 @@ class CuriosityGraphBuilder:
             depth_score=weighted_frequency,  # repurposed: weighted signal count
             debt_score=debt_score,
             curiosity_type=curiosity_type,
+            signal_samples=signal_samples,
         )
 
     def _compute_source_breakdown(

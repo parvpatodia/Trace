@@ -234,11 +234,7 @@ class TracePipeline:
         return {"articles": articles, "errors": errors}
 
     async def _node_assemble_context(self, state: _State) -> dict:
-        ctx = self._assembler.assemble(
-            state["graph"],
-            state["articles"],
-            signals=state.get("signals") or [],
-        )
+        ctx = self._assembler.assemble(state["graph"], state["articles"])
         return {"context": ctx}
 
     async def _node_compose_newsletter(self, state: _State) -> dict:

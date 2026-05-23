@@ -46,6 +46,7 @@ WHY ALGOLIA NOT THE OFFICIAL HN FIREBASE API:
 from __future__ import annotations
 
 import logging
+import math
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -169,7 +170,14 @@ class HackerNewsScraper(ArticleScraper):
         story_text: str = (hit.get("story_text") or "").strip()
         published_at = _parse_hn_datetime(hit.get("created_at"))
         points: int = hit.get("points") or 0
-        relevance_score = max(0.0, 1.0 - rank / max(1, total))
+
+        # Blend Algolia position rank (relevance+recency) with community vote
+        # signal (points). Log-scale points to avoid a single viral story
+        # drowning all others. Weight: 60% points quality, 40% position rank.
+        # log(1)/log(3001)=0, log(3001)/log(3001)=1 → normalised [0,1].
+        points_score = math.log(points + 1) / math.log(3001)
+        position_score = max(0.0, 1.0 - rank / max(1, total))
+        relevance_score = round(0.6 * points_score + 0.4 * position_score, 4)
 
         return ScrapedArticle(
             topic_id=topic.id,

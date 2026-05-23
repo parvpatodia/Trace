@@ -95,6 +95,10 @@ class Topic(BaseModel):
     depth_score: float = Field(default=0.0, ge=0.0)
     debt_score: float = Field(default=0.0, ge=0.0)
     curiosity_type: CuriosityType = CuriosityType.SHALLOW
+    # Up to 2 representative signal contents (search queries / ChatGPT questions
+    # preferred). Stored on the Topic so they survive serialisation and are
+    # available during daily regeneration without re-uploading raw signals.
+    signal_samples: tuple[str, ...] = Field(default_factory=tuple)
 
     @model_validator(mode="after")
     def temporal_consistency(self) -> "Topic":

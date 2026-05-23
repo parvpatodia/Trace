@@ -269,17 +269,53 @@ def _store_newsletter(response: GenerateResponse) -> None:
         _NEWSLETTER_CACHE.popitem(last=False)
 
 
-def _store_profile(graph: CuriosityGraph) -> str:
-    """Cache the CuriosityGraph and return a new profile_id UUID.
+def _profile_dir() -> Path:
+    """Directory where CuriosityGraph JSON files are persisted."""
+    return get_settings().upload_dir / "profiles"
 
-    Only inferred topic names + scores are stored — never raw browsing signals.
-    The profile lets users regenerate a fresh newsletter daily without re-uploading.
+
+def _store_profile(graph: CuriosityGraph) -> str:
+    """Persist a CuriosityGraph to disk and cache it in memory.
+
+    Only inferred topic names + scores + signal_samples are stored — never raw
+    browsing URLs or conversation content.  Disk persistence means profile_ids
+    survive server restarts, enabling daily regeneration without re-uploading.
     """
     profile_id = str(uuid.uuid4())
+    # Memory cache (fast path for same-process requests)
     _PROFILE_CACHE[profile_id] = graph
     if len(_PROFILE_CACHE) > _PROFILE_CACHE_MAX:
         _PROFILE_CACHE.popitem(last=False)
+    # Disk persistence (survives restarts)
+    try:
+        d = _profile_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{profile_id}.json").write_text(
+            graph.model_dump_json(), encoding="utf-8"
+        )
+    except OSError as exc:
+        _log.warning("Could not persist profile %s to disk: %s", profile_id, exc)
     return profile_id
+
+
+def _load_profile(profile_id: str) -> CuriosityGraph | None:
+    """Return a CuriosityGraph by profile_id, checking memory then disk."""
+    if profile_id in _PROFILE_CACHE:
+        return _PROFILE_CACHE[profile_id]
+    try:
+        path = _profile_dir() / f"{profile_id}.json"
+        if path.exists():
+            graph = CuriosityGraph.model_validate_json(
+                path.read_text(encoding="utf-8")
+            )
+            # Warm the memory cache so subsequent calls are instant
+            _PROFILE_CACHE[profile_id] = graph
+            if len(_PROFILE_CACHE) > _PROFILE_CACHE_MAX:
+                _PROFILE_CACHE.popitem(last=False)
+            return graph
+    except Exception as exc:
+        _log.warning("Could not load profile %s from disk: %s", profile_id, exc)
+    return None
 
 
 # ── FastAPI app ───────────────────────────────────────────────────────────────
@@ -1277,11 +1313,11 @@ async def regenerate_newsletter(
     if not _UUID_RE.match(profile_id):
         raise HTTPException(status_code=400, detail="Invalid profile ID format")
 
-    graph = _PROFILE_CACHE.get(profile_id)
+    graph = _load_profile(profile_id)
     if graph is None:
         raise HTTPException(
             status_code=404,
-            detail="Profile not found or expired. Please re-upload your history file.",
+            detail="Profile not found. Please re-upload your history file.",
         )
 
     pipeline = _build_pipeline_from_settings()

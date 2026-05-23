@@ -45,6 +45,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from typing import Any, TypedDict
 
 import anthropic
@@ -241,22 +242,47 @@ class TopicExtractor:
         return topics
 
     def _merge_topics(self, topics: list[RawTopicData]) -> list[RawTopicData]:
+        # Two-pass merge:
+        # Pass 1 — exact canonical name match (fast path, most common case).
+        # Pass 2 — fuzzy normalised match: collapse separator variants so that
+        #   "fine-tuning", "fine tuning", "finetuning" → same topic.
+        #   Normalisation: lowercase, strip hyphens/underscores/spaces.
+        #   Conservative: only merges clear typographic variants, not synonyms.
+        norm_to_canonical: dict[str, str] = {}
         merged: dict[str, RawTopicData] = {}
+
         for topic in topics:
             name = topic["name"]
-            if name not in merged:
+            norm = _normalise_for_merge(name)
+
+            if norm in norm_to_canonical:
+                canonical = norm_to_canonical[norm]
+                existing = merged[canonical]
+                existing["signal_ids"] = list(
+                    dict.fromkeys(existing["signal_ids"] + topic["signal_ids"])
+                )
+                # Absorb the variant name as an alias so the newsletter can
+                # reference it, then deduplicate aliases.
+                extra_aliases = ([name] if name != canonical else []) + topic["aliases"]
+                existing["aliases"] = list(
+                    dict.fromkeys(existing["aliases"] + extra_aliases)
+                )
+            else:
+                norm_to_canonical[norm] = name
                 merged[name] = RawTopicData(
                     name=name,
                     aliases=list(topic["aliases"]),
                     signal_ids=list(topic["signal_ids"]),
                 )
-            else:
-                existing = merged[name]
-                # Deduplicated union for both signal_ids and aliases
-                existing["signal_ids"] = list(
-                    dict.fromkeys(existing["signal_ids"] + topic["signal_ids"])
-                )
-                existing["aliases"] = list(
-                    dict.fromkeys(existing["aliases"] + topic["aliases"])
-                )
+
         return list(merged.values())
+
+
+def _normalise_for_merge(name: str) -> str:
+    """Strip all separators for typographic-variant dedup.
+
+    'fine-tuning' == 'fine tuning' == 'finetuning' → 'finetuning'
+    'llm fine-tuning' == 'llm finetuning' → 'llmfinetuning'
+    'kubernetes' stays 'kubernetes' (no false positives).
+    """
+    return re.sub(r"[\s\-_]+", "", name.lower())

@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from trace.models import CuriosityGraph, CuriosityType, RawSignal, ScrapedArticle, SignalSource, Topic
+from trace.models import CuriosityGraph, CuriosityType, ScrapedArticle, Topic
 
 _CHARS_PER_TOKEN = 4
 _OVERHEAD_PER_TOPIC = 50   # chars — labels, newlines, structural text
@@ -95,8 +95,6 @@ class ContextWindowAssembler:
         self,
         graph: CuriosityGraph,
         articles: list[ScrapedArticle],
-        *,
-        signals: list[RawSignal] | None = None,
     ) -> AssemblyContext:
         # 1. Filter and rank topics
         candidates = [
@@ -137,23 +135,15 @@ class ContextWindowAssembler:
         # 5. Debt topics: only from selected, only those with debt_score > 0
         debt_topics = tuple(t for t in selected if t.debt_score > 0)
 
-        # 6. Signal samples: up to 2 representative signal contents per topic,
-        #    preferring explicit-intent signals (ChatGPT questions, search queries).
-        signal_samples: dict[str, list[str]] = {}
-        if signals:
-            signals_by_id = {s.id: s for s in signals}
-            _explicit = {SignalSource.CHATGPT_EXPORT, SignalSource.GOOGLE_TAKEOUT}
-            for t in selected:
-                matched = [signals_by_id[sid] for sid in t.signal_ids if sid in signals_by_id]
-                # Sort: explicit-intent sources first, then by content length (more
-                # descriptive signals carry more vocabulary for Claude to mirror).
-                matched.sort(
-                    key=lambda s: (
-                        0 if s.source in _explicit else 1,
-                        -len(s.content),
-                    )
-                )
-                signal_samples[t.id] = [s.content[:200] for s in matched[:2]]
+        # 6. Signal samples: read directly from Topic.signal_samples — they were
+        #    computed by CuriosityGraphBuilder and travel with the graph through
+        #    serialisation, so daily regeneration (run_from_graph) works without
+        #    needing access to the original raw signals.
+        signal_samples = {
+            t.id: list(t.signal_samples)
+            for t in selected
+            if t.signal_samples
+        }
 
         return AssemblyContext(
             selected_topics=tuple(selected),
