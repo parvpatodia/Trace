@@ -672,7 +672,8 @@ _FRONTEND_HTML = """<!DOCTYPE html>
           <li>Go to <strong>takeout.google.com</strong></li>
           <li>Deselect all → select only <code>Chrome</code></li>
           <li>Export → Download → extract the ZIP</li>
-          <li>Find <code>BrowserHistory.json</code> and upload it below</li>
+          <li>Open the ZIP → navigate to <code>Takeout/Chrome/</code></li>
+          <li>Upload <code>BrowserHistory.json</code> below</li>
         </ol>
       </div>
       <label class="upload-area" id="drop-google">
@@ -728,6 +729,9 @@ _FRONTEND_HTML = """<!DOCTYPE html>
       <button class="primary" id="gen-btn" onclick="generate()">Generate My Newsletter</button>
       <div class="spinner" id="spinner"></div>
       <div class="status" id="status"></div>
+      <p style="font-size:0.75rem;color:var(--muted);text-align:center;margin-top:0.75rem">
+        Generation takes <strong style="color:var(--text)">60–120 seconds</strong> — Claude reads your entire history and writes a bespoke newsletter. Please don't close this tab.
+      </p>
     </div>
   </div>
 
@@ -799,19 +803,29 @@ function setLoading(loading) {
 }
 
 const STAGE_MSGS = [
-  'Reading your history…',
-  'Extracting curiosity topics with Claude…',
-  'Fetching fresh articles from arXiv, HN & more…',
-  'Assembling your context window…',
+  'Reading your history and signals…',
+  'Clustering curiosity topics with Claude — this takes 20–40s…',
+  'Fetching fresh articles from arXiv, Hacker News & web…',
+  'Assembling your personalised context window…',
   'Writing your newsletter with Claude…',
+  'Still working — large histories can take up to 2 minutes…',
+  'Almost there — finalising your newsletter…',
 ];
+// Delay per stage in ms — early stages are faster, later ones need reassurance
+const STAGE_DELAYS = [3000, 18000, 15000, 5000, 15000, 20000, 20000];
 let stageIdx = 0;
 let stageTimer;
 
 function tickStage() {
   if (stageIdx < STAGE_MSGS.length) {
-    setStatus(STAGE_MSGS[stageIdx++]);
-    stageTimer = setTimeout(tickStage, 6000);
+    setStatus(STAGE_MSGS[stageIdx]);
+    const delay = STAGE_DELAYS[stageIdx] || 15000;
+    stageIdx++;
+    stageTimer = setTimeout(tickStage, delay);
+  } else {
+    // Loop the last reassurance message so UI never looks frozen
+    setStatus('Still processing — complex histories can take a few minutes…');
+    stageTimer = setTimeout(tickStage, 20000);
   }
 }
 
