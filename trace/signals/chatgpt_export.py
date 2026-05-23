@@ -136,6 +136,7 @@ class ChatGPTExportCollector(SignalCollector):
         convo_create_time: float | None = convo.get("create_time")
 
         signals: list[RawSignal] = []
+        skipped = 0
         for node in mapping.values():
             if not isinstance(node, dict):
                 continue
@@ -144,9 +145,14 @@ class ChatGPTExportCollector(SignalCollector):
                 continue
             if message.get("author", {}).get("role") != "user":
                 continue
-            signal = self._parse_message(message, title, convo_create_time)
-            if signal is not None:
-                signals.append(signal)
+            try:
+                signal = self._parse_message(message, title, convo_create_time)
+                if signal is not None:
+                    signals.append(signal)
+            except Exception:
+                skipped += 1
+        if skipped:
+            _log.debug("Skipped %d malformed/oversized messages", skipped)
         return signals
 
     def _parse_message(

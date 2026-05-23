@@ -124,10 +124,16 @@ class GoogleTakeoutCollector(SignalCollector):
             )
 
         signals: list[RawSignal] = []
+        skipped = 0
         for entry in entries:
-            signal = self._parse_entry(entry)
-            if signal is not None:
-                signals.append(signal)
+            try:
+                signal = self._parse_entry(entry)
+                if signal is not None:
+                    signals.append(signal)
+            except Exception:
+                skipped += 1
+        if skipped:
+            _log.debug("Skipped %d malformed/oversized entries", skipped)
         _log.info("Collected %d signal(s) from BrowserHistory.json (%d raw entries)", len(signals), len(entries))
         return signals
 
@@ -164,7 +170,7 @@ class GoogleTakeoutCollector(SignalCollector):
 
         return RawSignal(
             source=self.source,
-            content=title,
+            content=title[:2000],
             url=safe_url,
             timestamp=ts,
             metadata={

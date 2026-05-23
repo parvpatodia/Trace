@@ -164,13 +164,19 @@ class YouTubeWatchHistoryCollector(SignalCollector):
         # with rewatch count.
         seen_urls: set[str] = set()
         signals: list[RawSignal] = []
+        skipped = 0
 
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
-            signal = self._parse_entry(entry, url_counts, seen_urls)
-            if signal is not None:
-                signals.append(signal)
+            try:
+                signal = self._parse_entry(entry, url_counts, seen_urls)
+                if signal is not None:
+                    signals.append(signal)
+            except Exception:
+                skipped += 1
+        if skipped:
+            _log.debug("Skipped %d malformed/oversized entries", skipped)
 
         return signals
 
