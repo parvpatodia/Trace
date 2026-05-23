@@ -33,7 +33,9 @@ from __future__ import annotations
 
 import logging
 import math
+from collections import defaultdict
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 from trace.graph.extractor import RawTopicData, TopicExtractor
 from trace.models import CuriosityGraph, CuriosityType, RawSignal, SignalSource, Topic
@@ -43,6 +45,11 @@ _log = logging.getLogger(__name__)
 _DEFAULT_HALF_LIFE_DAYS: int = 14
 _DEFAULT_DEBT_THRESHOLD_DAYS: int = 7
 _DEFAULT_DEBT_THRESHOLD_OCCURRENCES: int = 3
+
+# Cap on signals sent to Claude — beyond this, returns diminish while cost soars.
+# 500 signals at batch_size=100 = 5 API calls instead of 1960.
+_MAX_SIGNALS_FOR_EXTRACTION: int = 500
+_MAX_SIGNALS_PER_DOMAIN: int = 3
 
 
 class CuriosityGraphBuilder:
@@ -103,7 +110,13 @@ class CuriosityGraphBuilder:
                 source_breakdown={},
             )
 
-        raw_topics: list[RawTopicData] = await self._extractor.extract(signals)
+        sampled = self._sample_signals(signals)
+        if len(sampled) < len(signals):
+            _log.info(
+                "Sampled %d signals from %d for topic extraction (domain-capped, recency-ranked)",
+                len(sampled), len(signals),
+            )
+        raw_topics: list[RawTopicData] = await self._extractor.extract(sampled)
 
         signals_by_id: dict[str, RawSignal] = {s.id: s for s in signals}
         scored: list[Topic] = []
@@ -123,6 +136,34 @@ class CuriosityGraphBuilder:
             signal_count=signal_count,
             source_breakdown=source_breakdown,
         )
+
+    def _sample_signals(self, signals: list[RawSignal]) -> list[RawSignal]:
+        """Return at most _MAX_SIGNALS_FOR_EXTRACTION signals.
+
+        Strategy: sort by recency (newest first), then cap per domain so one
+        noisy domain (e.g. GitHub, Google Docs) doesn't dominate the sample.
+        """
+        sorted_signals = sorted(signals, key=lambda s: s.timestamp, reverse=True)
+
+        domain_counts: dict[str, int] = defaultdict(int)
+        sampled: list[RawSignal] = []
+
+        for sig in sorted_signals:
+            if len(sampled) >= _MAX_SIGNALS_FOR_EXTRACTION:
+                break
+            domain = ""
+            if sig.url:
+                try:
+                    domain = urlparse(sig.url).netloc
+                except Exception:
+                    pass
+            if domain and domain_counts[domain] >= _MAX_SIGNALS_PER_DOMAIN:
+                continue
+            if domain:
+                domain_counts[domain] += 1
+            sampled.append(sig)
+
+        return sampled
 
     def _score_topic(
         self,

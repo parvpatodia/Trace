@@ -67,7 +67,7 @@ class TopicExtractionError(Exception):
 
 
 _DEFAULT_MODEL = "claude-sonnet-4-6-20251001"
-_DEFAULT_BATCH_SIZE = 50
+_DEFAULT_BATCH_SIZE = 100
 
 _SYSTEM_PROMPT = """You are a curiosity analyst. Your task is to identify topics of genuine intellectual curiosity from a person's digital signals.
 
