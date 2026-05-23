@@ -876,6 +876,7 @@ _FRONTEND_HTML = """<!DOCTYPE html>
     </div>
 
     <div class="gen-section">
+      <div id="inline-error" style="display:none;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.4);border-radius:8px;padding:0.75rem 1rem;margin-bottom:0.75rem;font-size:0.85rem;color:#fca5a5;"></div>
       <button class="primary" id="gen-btn" onclick="generate()">Generate My Newsletter</button>
       <div class="loading-wrap" id="loading-wrap">
         <div class="dots">
@@ -913,12 +914,14 @@ let fileCount = 0;
 
 // ── Card expand/collapse ──────────────────────────────────────────────────────
 function toggleCard(type) {
-  const card = document.getElementById('card-' + type);
+  var card = document.getElementById('card-' + type);
   card.classList.toggle('expanded');
 }
 
-// Auto-expand the first card on load
+// All cards start expanded so upload zones are immediately visible
 document.getElementById('card-google').classList.add('expanded');
+document.getElementById('card-youtube').classList.add('expanded');
+document.getElementById('card-chatgpt').classList.add('expanded');
 
 // ── File chosen ───────────────────────────────────────────────────────────────
 function fileChosen(type) {
@@ -1052,7 +1055,9 @@ function badgeLabel(type) {
 
 // Split content on blank lines into separate <p> tags
 function fmtContent(text) {
-  return String(text).split(/\n\n+/).map(p => `<p>${esc(p.trim())}</p>`).join('');
+  var parts = String(text).split('\\n\\n').map(function(p) { return p.trim(); }).filter(Boolean);
+  if (parts.length === 0) return '<p>' + esc(String(text).trim()) + '</p>';
+  return parts.map(function(p) { return '<p>' + esc(p) + '</p>'; }).join('');
 }
 
 function downloadBlob(content, filename, mime) {
@@ -1089,7 +1094,7 @@ async function regenerate() {
     const r = await fetch('/newsletter/regenerate/' + encodeURIComponent(newsletterData.profile_id), { method: 'POST' });
     if (!r.ok) {
       let msg = 'Regeneration failed';
-      try { const e = await r.json(); msg = e.detail || msg; } catch { msg = await r.text().catch(() => msg); }
+      try { const ej = await r.json(); msg = ej.detail || msg; } catch (_e) { try { msg = await r.text(); } catch (_e2) {} }
       throw new Error(msg);
     }
     const data = await r.json();
@@ -1254,7 +1259,7 @@ async function generate() {
     });
     if (!r2.ok) {
       let msg = 'Generation failed';
-      try { const e = await r2.json(); msg = e.detail || msg; } catch { msg = await r2.text().catch(() => msg); }
+      try { const ej2 = await r2.json(); msg = ej2.detail || msg; } catch (_e) { try { msg = await r2.text(); } catch (_e2) {} }
       throw new Error(msg);
     }
     const data = await r2.json();
