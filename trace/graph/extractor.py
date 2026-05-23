@@ -159,7 +159,7 @@ class TopicExtractor:
         try:
             response = self._client.messages.create(
                 model=self._model,
-                max_tokens=2048,
+                max_tokens=4096,
                 system=[
                     {
                         "type": "text",
