@@ -34,20 +34,34 @@ from functools import lru_cache
 from typing import Any
 
 from fastapi import HTTPException, status
-from scalekit import AuthorizationUrlOptions, CodeAuthenticationOptions, ScalekitClient
-from scalekit.client import ScalekitValidateTokenFailureException
 
 from trace.config import get_settings
 
+# Lazy imports — scalekit is optional. The SDK is only needed when Scalekit
+# credentials are configured. Without them the auth endpoints return 503 and
+# the newsletter pipeline runs unauthenticated, which is fine for local dev.
+try:
+    from scalekit import AuthorizationUrlOptions, CodeAuthenticationOptions, ScalekitClient
+    from scalekit.client import ScalekitValidateTokenFailureException
+    _SCALEKIT_AVAILABLE = True
+except ModuleNotFoundError:
+    _SCALEKIT_AVAILABLE = False
+    AuthorizationUrlOptions = None  # type: ignore[assignment,misc]
+    CodeAuthenticationOptions = None  # type: ignore[assignment,misc]
+    ScalekitClient = None  # type: ignore[assignment,misc]
+    ScalekitValidateTokenFailureException = Exception  # type: ignore[assignment,misc]
+
 
 @lru_cache(maxsize=1)
-def get_scalekit_client() -> ScalekitClient | None:
+def get_scalekit_client() -> "ScalekitClient | None":
     """
     Return a cached ScalekitClient, or None if Scalekit is not configured.
 
     Returns None rather than raising so that callers can degrade gracefully
     (auth endpoints return 503) instead of crashing the whole service.
     """
+    if not _SCALEKIT_AVAILABLE:
+        return None
     settings = get_settings()
     if not (settings.scalekit_env_url and settings.scalekit_client_id and settings.scalekit_client_secret):
         return None
