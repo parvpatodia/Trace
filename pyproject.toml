@@ -24,6 +24,9 @@ dependencies = [
     "python-multipart>=0.0.9,<1.0",
     "pymupdf>=1.24,<2.0",
     "scalekit-sdk-python>=2.10,<3.0",
+    "mcp>=1.0,<2.0",
+    "redis>=5.0,<6.0",
+    "pyjwt[crypto]>=2.4,<3.0",
 ]
 
 [project.optional-dependencies]
@@ -67,6 +70,7 @@ filterwarnings = [
 [tool.coverage.run]
 omit = [
     "tests/*",
+    "trace/mcp/*",
 ]
 
 [tool.ruff]

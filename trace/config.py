@@ -30,6 +30,19 @@ class Settings(BaseSettings):
     scalekit_client_secret: str | None = None
     auth_callback_url: str = "http://localhost:8000/auth/callback"
 
+    # Scalekit Agent Connect — routes Apify calls through Scalekit's Token Vault.
+    # Connector name as configured in the Scalekit dashboard (e.g. "apify-mcp").
+    scalekit_apify_connection_name: str = "apify-mcp"
+    # Per-tenant identifier scoping connected accounts (email or UUID in prod).
+    scalekit_default_identifier: str = "default"
+    # When set, the MCP server enforces OAuth 2.1 bearer-token auth via Scalekit.
+    scalekit_mcp_resource_id: str | None = None
+    # Public base URL of this server — used as JWT audience for MCP Auth.
+    public_base_url: str = "http://localhost:8000"
+
+    # Redis URL for the curiosity graph cache (sub-50ms reads for MCP tools).
+    redis_url: str | None = None
+
     database_url: str = "sqlite+aiosqlite:///./trace_data.db"
 
     scraper_max_concurrent: int = Field(default=5, ge=1, le=20)

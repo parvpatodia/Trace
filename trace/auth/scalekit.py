@@ -30,10 +30,13 @@ WHY OPTIONAL SCALEKIT CONFIG:
 from __future__ import annotations
 
 import asyncio
+import logging
 from functools import lru_cache
 from typing import Any
 
 from fastapi import HTTPException, status
+
+_log = logging.getLogger(__name__)
 
 from trace.config import get_settings
 
@@ -178,3 +181,125 @@ async def verify_token(token: str) -> UserClaims:
             headers={"WWW-Authenticate": "Bearer"},
         ) from e
     return UserClaims(claims)
+
+
+# ── Scalekit Agent Connect ─────────────────────────────────────────────────
+#
+# Three helpers that wrap the official client.connect.* namespace.
+# All SDK calls are synchronous; wrapped in asyncio.to_thread for FastAPI.
+
+
+async def connect_get_authorization_link(
+    identifier: str,
+    connection_name: str,
+    state: str | None = None,
+    redirect_url: str | None = None,
+) -> str:
+    """Return a Scalekit magic link the user clicks to connect a third-party account.
+
+    After the user approves, Scalekit stores the OAuth token in its Vault and
+    the agent can call execute_tool() against that connection on their behalf.
+    Returns "" when Scalekit is unconfigured.
+    """
+    client = get_scalekit_client()
+    if client is None:
+        return ""
+
+    def _call() -> Any:
+        kwargs: dict[str, Any] = {
+            "identifier": identifier,
+            "connection_name": connection_name,
+        }
+        if state:
+            kwargs["state"] = state
+        if redirect_url:
+            kwargs["user_verify_url"] = redirect_url
+        return client.connect.get_authorization_link(**kwargs)  # type: ignore[union-attr]
+
+    try:
+        result = await asyncio.to_thread(_call)
+        if hasattr(result, "link"):
+            return str(result.link)
+        if isinstance(result, dict):
+            return str(result.get("link", ""))
+        return str(result)
+    except Exception as exc:
+        _log.warning("Scalekit get_authorization_link failed: %s", exc)
+        return ""
+
+
+async def connect_ensure_account(
+    identifier: str,
+    connection_name: str,
+) -> dict[str, Any]:
+    """Create or fetch a connected account for (identifier, connection_name).
+
+    Idempotent — safe to call before every magic-link generation.
+    Returns {} when Scalekit is unconfigured or on error.
+    """
+    client = get_scalekit_client()
+    if client is None:
+        return {}
+
+    def _call() -> Any:
+        return client.connect.get_or_create_connected_account(  # type: ignore[union-attr]
+            connection_name=connection_name,
+            identifier=identifier,
+        )
+
+    try:
+        result = await asyncio.to_thread(_call)
+        if hasattr(result, "connected_account"):
+            acc = result.connected_account
+            return {
+                "id": getattr(acc, "id", ""),
+                "status": getattr(acc, "status", ""),
+                "connection_name": connection_name,
+                "identifier": identifier,
+            }
+        if isinstance(result, dict):
+            return result
+        return {"raw": str(result)}
+    except Exception as exc:
+        _log.warning("Scalekit connect_ensure_account failed: %s", exc)
+        return {}
+
+
+async def connect_execute_tool(
+    tool_name: str,
+    tool_input: dict[str, Any],
+    identifier: str,
+) -> dict[str, Any]:
+    """Execute a tool against a connected account through Scalekit.
+
+    Example:
+        result = await connect_execute_tool(
+            tool_name="apifymcp_call_actor",
+            tool_input={"actor_id": "apify/rag-web-browser", "input": {...}},
+            identifier="user@example.com",
+        )
+
+    The Apify token lives in Scalekit's Vault — never in our env vars.
+    Returns {} when Scalekit is unconfigured or on error.
+    """
+    client = get_scalekit_client()
+    if client is None:
+        return {}
+
+    def _call() -> Any:
+        return client.connect.execute_tool(  # type: ignore[union-attr]
+            tool_name=tool_name,
+            tool_input=tool_input,
+            identifier=identifier,
+        )
+
+    try:
+        result = await asyncio.to_thread(_call)
+        if isinstance(result, dict):
+            return result
+        if hasattr(result, "__dict__"):
+            return dict(result.__dict__)
+        return {"raw": str(result)}
+    except Exception as exc:
+        _log.warning("Scalekit connect_execute_tool(%s) failed: %s", tool_name, exc)
+        return {}

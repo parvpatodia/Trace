@@ -341,6 +341,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount the Curiosity OS MCP server at /mcp.
+# Claude Desktop connects to: http://localhost:8000/mcp  (Streamable HTTP)
+# SSE fallback:               http://localhost:8000/mcp/sse
+try:
+    from trace.mcp.server import get_mcp_asgi_app
+    app.mount("/mcp", get_mcp_asgi_app())
+    _log.info("Trace MCP server mounted at /mcp")
+except Exception as _mcp_err:
+    _log.warning("MCP server mount failed (non-fatal): %s", _mcp_err)
+
 _bearer = HTTPBearer(auto_error=False)
 
 
@@ -744,9 +754,68 @@ _FRONTEND_HTML = """<!DOCTYPE html>
 <body>
 <div class="container">
   <header>
+    <div style="display:inline-block;padding:0.3rem 0.7rem;background:var(--accent-dim);color:var(--accent);font-size:0.7rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;border-radius:999px;margin-bottom:1rem;">Curiosity OS &middot; MCP-native</div>
     <div class="logo">Tr<span>a</span>ce</div>
-    <p class="tagline">Upload your history. Get a newsletter that reflects <em>your</em> curiosity.</p>
+    <p class="tagline">The personal curiosity data plane for AI agents.</p>
+    <p style="color:var(--muted2,#6b7280);margin-top:0.5rem;font-size:0.88rem;max-width:560px;margin-left:auto;margin-right:auto;line-height:1.5;">
+      Every AI agent will need to know what <em>you</em> care about. Trace exposes your real interests &mdash; inferred from what you actually browse, search, and read &mdash; as MCP tools any agent can query.
+    </p>
   </header>
+
+  <!-- MCP Connection Banner -->
+  <div class="card" style="background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(99,102,241,0.02));border-color:rgba(99,102,241,0.3);margin-bottom:1.25rem;">
+    <div class="card-title" style="color:var(--accent)">Connect Trace to Claude Desktop</div>
+    <div style="font-size:0.85rem;color:var(--muted);line-height:1.6;margin-bottom:0.85rem;">
+      Trace is an MCP server. Add this snippet to your <code style="color:var(--text,#f1f5f9);background:var(--surface2,#1e293b);padding:0.1rem 0.4rem;border-radius:4px;font-size:0.8rem;">claude_desktop_config.json</code> and Claude can call Trace tools directly.
+    </div>
+    <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.9rem 1rem;font-family:'SF Mono',Consolas,monospace;font-size:0.78rem;color:var(--muted);line-height:1.8;overflow-x:auto;">
+      <div style="color:var(--muted2,#6b7280);font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.5rem;font-family:Inter,sans-serif;">claude_desktop_config.json</div>
+      <div><span style="color:#818cf8">"mcpServers"</span>: {</div>
+      <div>&nbsp;&nbsp;<span style="color:#34d399">"trace"</span>: { <span style="color:#818cf8">"url"</span>: <span style="color:#fbbf24">"http://localhost:8000/mcp"</span>, <span style="color:#818cf8">"transport"</span>: <span style="color:#fbbf24">"http"</span> }</div>
+      <div>}</div>
+    </div>
+    <div style="margin-top:0.85rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.5rem;font-size:0.72rem;">
+      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:6px;padding:0.5rem 0.7rem;">
+        <div style="color:var(--accent);font-weight:600;font-size:0.68rem;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.2rem;">Tool</div>
+        <code style="color:var(--text,#f1f5f9);font-size:0.75rem;">get_curiosity_topics</code>
+      </div>
+      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:6px;padding:0.5rem 0.7rem;">
+        <div style="color:var(--accent);font-weight:600;font-size:0.68rem;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.2rem;">Tool</div>
+        <code style="color:var(--text,#f1f5f9);font-size:0.75rem;">get_unresolved_questions</code>
+      </div>
+      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:6px;padding:0.5rem 0.7rem;">
+        <div style="color:var(--accent);font-weight:600;font-size:0.68rem;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.2rem;">Tool</div>
+        <code style="color:var(--text,#f1f5f9);font-size:0.75rem;">generate_briefing</code>
+      </div>
+      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:6px;padding:0.5rem 0.7rem;">
+        <div style="color:var(--accent);font-weight:600;font-size:0.68rem;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.2rem;">Tool</div>
+        <code style="color:var(--text,#f1f5f9);font-size:0.75rem;">track_signal</code>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sponsor Stack -->
+  <div class="card" style="margin-bottom:1.25rem;">
+    <div class="card-title">Powered by</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.7rem;font-size:0.78rem;">
+      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.85rem 0.9rem;">
+        <div style="font-weight:600;color:var(--text,#f1f5f9);margin-bottom:0.2rem;">Apify MCP</div>
+        <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">Dynamic Actor selection · 31k+ scrapers</div>
+      </div>
+      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.85rem 0.9rem;">
+        <div style="font-weight:600;color:var(--text,#f1f5f9);margin-bottom:0.2rem;">Scalekit</div>
+        <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">MCP Auth (OAuth 2.1) + Token Vault (Apify bridge)</div>
+      </div>
+      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.85rem 0.9rem;">
+        <div style="font-weight:600;color:var(--text,#f1f5f9);margin-bottom:0.2rem;">Redis</div>
+        <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">Sub-50ms curiosity graph reads via ZSET</div>
+      </div>
+      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.85rem 0.9rem;">
+        <div style="font-weight:600;color:var(--text,#f1f5f9);margin-bottom:0.2rem;">Anthropic Claude</div>
+        <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">Topic extraction + briefing composition</div>
+      </div>
+    </div>
+  </div>
 
   <div class="privacy-note">
     <strong>Your data stays local.</strong>
@@ -756,7 +825,7 @@ _FRONTEND_HTML = """<!DOCTYPE html>
   </div>
 
   <div class="card">
-    <div class="card-title">Signal Sources · Upload one or more</div>
+    <div class="card-title">Web UI &middot; Upload signals &rarr; get a briefing</div>
 
     <div class="source-cards">
 
@@ -906,7 +975,7 @@ _FRONTEND_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
-<footer>Trace · Hackathon Build · Powered by Claude &amp; Anthropic</footer>
+<footer>Trace &mdash; Curiosity OS &middot; MCP AI Agents Hackathon &middot; Claude &middot; Apify MCP &middot; Scalekit &middot; Redis</footer>
 
 <script>
 let newsletterData = null;
@@ -1745,3 +1814,80 @@ async def auth_logout(post_logout_redirect_uri: str | None = None) -> dict[str, 
         options.post_logout_redirect_uri = post_logout_redirect_uri
     logout_url = client.get_logout_url(options)
     return {"logout_url": logout_url}
+
+
+@app.get("/auth/connect")
+async def auth_connect(
+    connection_name: str = "apify-mcp",
+    identifier: str | None = None,
+    redirect_url: str | None = None,
+) -> dict[str, Any]:
+    """Return a Scalekit magic link for the user to connect a third-party account.
+
+    After the user clicks the link and approves, Scalekit stores their OAuth
+    token in the Token Vault and Trace can call that service on their behalf
+    without ever seeing the raw credentials.
+
+    Example: GET /auth/connect?connection_name=apify-mcp
+    → {"link": "https://auth.yourdomain.scalekit.com/connect/...", "status": "ok"}
+    """
+    from trace.auth.scalekit import connect_ensure_account, connect_get_authorization_link
+
+    settings = get_settings()
+    user_id = identifier or settings.scalekit_default_identifier
+    await connect_ensure_account(user_id, connection_name)
+    link = await connect_get_authorization_link(
+        identifier=user_id,
+        connection_name=connection_name,
+        redirect_url=redirect_url,
+    )
+    if not link:
+        return {
+            "status": "unconfigured",
+            "message": "Scalekit is not configured — set SCALEKIT_ENV_URL, SCALEKIT_CLIENT_ID, SCALEKIT_CLIENT_SECRET",
+        }
+    return {"link": link, "status": "ok", "connection_name": connection_name}
+
+
+@app.get("/mcp-info")
+async def mcp_info() -> dict[str, Any]:
+    """Return everything needed to connect Claude Desktop to Trace MCP.
+
+    Judges: paste the snippet into claude_desktop_config.json and Claude
+    can call Trace curiosity tools as native MCP tools instantly.
+    """
+    settings = get_settings()
+    base = settings.public_base_url
+    return {
+        "claude_desktop_config": {
+            "mcpServers": {
+                "trace": {
+                    "url": f"{base}/mcp",
+                    "transport": "http",
+                }
+            }
+        },
+        "tools": [
+            "track_signal",
+            "get_curiosity_topics",
+            "get_unresolved_questions",
+            "generate_briefing",
+            "health",
+        ],
+        "auth": {
+            "type": "oauth2",
+            "provider": "Scalekit",
+            "mcp_auth_enforced": bool(settings.scalekit_mcp_resource_id),
+            "connect_link": f"{base}/auth/connect",
+        },
+        "sponsor_stack": {
+            "apify_mcp": bool(settings.apify_api_token),
+            "scalekit_connect": bool(
+                settings.scalekit_env_url
+                and settings.scalekit_client_id
+                and settings.scalekit_client_secret
+            ),
+            "redis": bool(settings.redis_url),
+            "anthropic": bool(settings.anthropic_api_key),
+        },
+    }
