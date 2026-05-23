@@ -49,19 +49,44 @@ _redis_store = RedisCuriosityStore()
 
 
 # ── FastMCP server ────────────────────────────────────────────────────────────
+#
+# MCP 1.27+ requires auth=AuthSettings(...) alongside token_verifier.
+# When Scalekit is not configured (local dev / CI), we omit both so the
+# server starts without any auth enforcement.
 
-mcp = FastMCP(
-    name="Trace — Curiosity OS",
-    instructions=(
+def _build_mcp() -> FastMCP:
+    """Construct the FastMCP instance with optional Scalekit OAuth auth."""
+    _instructions = (
         "Trace is the curiosity data plane for AI agents. "
         "It knows what the user actually cares about — inferred from their browsing, "
         "search, and conversation history. Use get_curiosity_topics to understand the "
         "user's interests before personalizing any response. "
         "Use track_signal to log observations from other agents into the shared graph. "
         "Use generate_briefing for a full research briefing on any topic."
-    ),
-    token_verifier=ScalekitMCPTokenVerifier(),
-)
+    )
+
+    # Only wire Scalekit auth when credentials are fully configured.
+    scalekit_ok = bool(s.scalekit_mcp_resource_id and s.scalekit_env_url)
+    if scalekit_ok:
+        try:
+            from mcp.server.auth.settings import AuthSettings
+            auth = AuthSettings(
+                issuer_url=s.scalekit_env_url,  # type: ignore[arg-type]
+                resource_server_url=s.public_base_url,  # type: ignore[arg-type]
+            )
+            return FastMCP(
+                name="Trace — Curiosity OS",
+                instructions=_instructions,
+                token_verifier=ScalekitMCPTokenVerifier(),
+                auth=auth,
+            )
+        except Exception as exc:
+            _log.warning("Scalekit MCP auth setup failed (%s) — starting without auth", exc)
+
+    return FastMCP(name="Trace — Curiosity OS", instructions=_instructions)
+
+
+mcp = _build_mcp()
 
 
 # ── Tool helpers ──────────────────────────────────────────────────────────────

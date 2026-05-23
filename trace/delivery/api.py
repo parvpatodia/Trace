@@ -1456,8 +1456,63 @@ async def frontend() -> str:
 
 
 @app.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
+async def health() -> dict[str, Any]:
+    """Enhanced liveness probe — includes per-sponsor status indicators."""
+    from trace.agent.scheduler import scheduler_status
+    from trace.mcp.server import _redis_store
+
+    settings = get_settings()
+
+    redis_ok = False
+    if _redis_store.enabled:
+        try:
+            client = await _redis_store._ensure_client()
+            redis_ok = client is not None
+        except Exception:
+            pass
+
+    scalekit_ok = bool(
+        settings.scalekit_env_url
+        and settings.scalekit_client_id
+        and settings.scalekit_client_secret
+    )
+
+    return {
+        "status": "ok",
+        "sponsors": {
+            "anthropic": {
+                "active": bool(settings.anthropic_api_key),
+                "model": settings.anthropic_model,
+                "indicator": "🟢" if settings.anthropic_api_key else "🔴",
+            },
+            "apify_mcp": {
+                "active": bool(settings.apify_api_token),
+                "indicator": "🟢" if settings.apify_api_token else "🟡",
+                "note": "Dynamic Actor routing with 13 hint mappings",
+            },
+            "scalekit": {
+                "mcp_auth": bool(settings.scalekit_mcp_resource_id),
+                "connect": scalekit_ok,
+                "token_vault": scalekit_ok,
+                "indicator": "🟢" if scalekit_ok else "🟡",
+                "note": "OAuth 2.1 + Token Vault for 5 service connections",
+            },
+            "redis": {
+                "active": redis_ok,
+                "enabled": _redis_store.enabled,
+                "indicator": "🟢" if redis_ok else ("🟡" if _redis_store.enabled else "⚪"),
+                "note": "Sub-50ms ZSET reads for curiosity graph",
+            },
+        },
+        "autonomous_loop": scheduler_status(),
+        "capabilities": {
+            "mcp_tools": 7,
+            "pattern_detectors": 3,
+            "tier_a_actions": ["notion", "calendar", "slack"],
+            "tier_b_drafts": ["gmail_draft", "reddit_post"],
+            "graph_algo": ["embeddings", "pagerank", "louvain"],
+        },
+    }
 
 
 @app.post("/upload", response_model=UploadResponse)
@@ -2050,6 +2105,34 @@ async def demo_inject_signal(request: Request) -> dict[str, Any]:
         "pending_count": len(bucket),
         "profile_id": profile_id,
         "message": "Signal injected. Run detect_and_act to process it into the curiosity graph.",
+    }
+
+
+@app.post("/demo/seed")
+async def demo_seed() -> dict[str, Any]:
+    """Inject a realistic ML/robotics curiosity profile for hackathon demos.
+
+    Populates profile_id='demo' with 8 topics:
+      diffusion_policy, robot_learning, nuplan, karpathy_neural_networks,
+      embodied_ai, rust_programming, pose_estimation, ai_safety
+
+    After seeding, use profile_id='demo' in all MCP tool calls to see the
+    full autonomous agent loop in action within 30 seconds (DEMO_MODE).
+    """
+    from trace.agent.demo_seed import inject_demo_seed
+    return await inject_demo_seed()
+
+
+@app.get("/demo/seed/status")
+async def demo_seed_status() -> dict[str, Any]:
+    """Check whether the demo seed profile is active."""
+    from trace.agent.demo_seed import _SEED_PROFILE_ID
+    from trace.delivery.api import _PROFILE_CACHE
+    in_memory = _SEED_PROFILE_ID in _PROFILE_CACHE
+    return {
+        "active": in_memory,
+        "profile_id": _SEED_PROFILE_ID,
+        "topic_count": len(_PROFILE_CACHE[_SEED_PROFILE_ID].topics) if in_memory else 0,
     }
 
 
