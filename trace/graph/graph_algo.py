@@ -3,7 +3,7 @@ Graph algorithm layer for the Curiosity Graph.
 
 PIPELINE:
   1. Encode topic names with TopicEmbedder (sentence-transformers/all-MiniLM-L6-v2)
-  2. Build edges: cosine similarity > 0.65 between topic pairs
+  2. Build edges: cosine similarity > 0.40 between topic pairs
   3. Compute PageRank on the edge-weighted graph (networkx)
   4. Blend scores: 0.6 × PageRank + 0.4 × composite_score
   5. Detect communities with Louvain algorithm (python-louvain)
@@ -166,7 +166,7 @@ def blend_scores(
 def enrich_graph(
     graph: CuriosityGraph,
     embedder: Any | None = None,
-    cosine_threshold: float = 0.65,
+    cosine_threshold: float = 0.40,
 ) -> "GraphEnrichment":
     """Compute edges, PageRank, Louvain communities, and blended scores.
 

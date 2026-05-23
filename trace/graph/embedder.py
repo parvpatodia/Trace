@@ -19,9 +19,11 @@ CACHING STRATEGY:
   restarting the server doesn't re-encode the same topics (Phase 4 Redis path
   is implemented but disabled when Redis is unconfigured).
 
-COSINE SIMILARITY THRESHOLD: 0.65
-  Chosen empirically: below 0.65 most pairs are noise ("robotics" ↔ "cooking").
-  Above 0.65 we reliably catch domain-adjacent pairs ("arxiv" ↔ "preprint").
+COSINE SIMILARITY THRESHOLD: 0.40
+  Short technical topic names (2-4 words) score lower than full sentences on
+  all-MiniLM-L6-v2: "diffusion policy" ↔ "robot learning" lands ~0.48-0.55.
+  0.40 captures domain-adjacent pairs while excluding unrelated topics
+  ("robotics" ↔ "cooking" scores ~0.10-0.20 — safely filtered out).
   0.80+ is reserved for near-duplicates ("machine learning" ↔ "deep learning").
 """
 from __future__ import annotations
@@ -34,7 +36,7 @@ import numpy as np
 _log = logging.getLogger(__name__)
 
 # Similarity thresholds for edge classification.
-COSINE_EDGE_THRESHOLD = 0.65
+COSINE_EDGE_THRESHOLD = 0.40
 COSINE_NEAR_DUPLICATE_THRESHOLD = 0.80
 
 _MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"

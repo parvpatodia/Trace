@@ -68,7 +68,6 @@ filterwarnings = [
     # LangGraph internal deprecation — not actionable from user code.
     "ignore::DeprecationWarning:langgraph",
     "ignore:.*allowed_objects.*:UserWarning",
-    "ignore::langchain_core._api.deprecation.LangChainPendingDeprecationWarning",
 ]
 
 [tool.coverage.run]

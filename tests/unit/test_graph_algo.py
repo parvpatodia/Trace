@@ -72,7 +72,7 @@ class TestTopicEmbedder:
 
     def test_cosine_similarity_between_similar_topics(self, mock_embedder):
         names, matrix = mock_embedder.cosine_similarity_matrix(["robotics", "robot learning"])
-        # Both point in roughly the same direction — should be > 0.65.
+        # Both point in roughly the same direction — should be > 0.40.
         idx_r = names.index("robotics")
         idx_rl = names.index("robot learning")
         assert matrix[idx_r, idx_rl] > COSINE_EDGE_THRESHOLD
@@ -91,7 +91,7 @@ class TestTopicEmbedder:
 
     def test_build_edges_excludes_dissimilar(self, mock_embedder):
         edges = mock_embedder.build_edges(["robotics", "cooking"])
-        assert len(edges) == 0  # cosine = 0, below 0.65
+        assert len(edges) == 0  # cosine = 0, below 0.40
 
     def test_build_edges_empty_input(self, mock_embedder):
         assert mock_embedder.build_edges([]) == []
@@ -189,7 +189,7 @@ class TestEnrichGraph:
 
         # Mock embedder that returns predictable edges.
         class MockEmbedder:
-            def build_edges(self, names, threshold=0.65):
+            def build_edges(self, names, threshold=0.40):
                 return [("robotics", "robot learning", 0.9)]
 
         enrichment = enrich_graph(graph, embedder=MockEmbedder())
@@ -200,7 +200,7 @@ class TestEnrichGraph:
         graph = _graph("a", "b")
 
         class MockEmbedder:
-            def build_edges(self, names, threshold=0.65):
+            def build_edges(self, names, threshold=0.40):
                 return [("a", "b", 0.8)]
 
         enrichment = enrich_graph(graph, embedder=MockEmbedder())
