@@ -27,6 +27,7 @@ dependencies = [
     "mcp>=1.0,<2.0",
     "redis>=5.0,<6.0",
     "pyjwt[crypto]>=2.4,<3.0",
+    "apscheduler>=3.10,<4.0",
 ]
 
 [project.optional-dependencies]
@@ -71,6 +72,10 @@ filterwarnings = [
 omit = [
     "tests/*",
     "trace/mcp/*",
+    # Scheduler and orchestrator are async integration layers — tested in smoke suite.
+    "trace/agent/scheduler.py",
+    "trace/agent/orchestrator.py",
+    "trace/actions/*",
 ]
 
 [tool.ruff]

@@ -135,7 +135,27 @@ async def lifespan(application: FastAPI):
     except Exception as exc:
         _log.warning("Could not build pipeline at startup: %s", exc)
         application.state.pipeline = None
+
+    # Start autonomous agent scheduler.
+    scheduler = None
+    try:
+        from trace.agent.scheduler import build_scheduler
+        scheduler = build_scheduler()
+        if scheduler is not None:
+            scheduler.start()
+            _log.info("Agent scheduler started")
+    except Exception as exc:
+        _log.warning("Agent scheduler failed to start: %s", exc)
+
     yield
+
+    # Shutdown scheduler cleanly.
+    if scheduler is not None:
+        try:
+            scheduler.shutdown(wait=False)
+            _log.info("Agent scheduler stopped")
+        except Exception:
+            pass
     application.state.pipeline = None
 
 
@@ -1847,6 +1867,95 @@ async def auth_connect(
             "message": "Scalekit is not configured — set SCALEKIT_ENV_URL, SCALEKIT_CLIENT_ID, SCALEKIT_CLIENT_SECRET",
         }
     return {"link": link, "status": "ok", "connection_name": connection_name}
+
+
+@app.get("/agent/status")
+async def agent_status() -> dict[str, Any]:
+    """Return the autonomous agent scheduler status — jobs, intervals, demo mode."""
+    try:
+        from trace.agent.scheduler import scheduler_status
+        return scheduler_status()
+    except Exception as exc:
+        return {"enabled": False, "error": str(exc)}
+
+
+@app.post("/demo/inject-signal")
+async def demo_inject_signal(request: Request) -> dict[str, Any]:
+    """Inject a synthetic signal into the curiosity graph for live demos.
+
+    Simulates what happens when the Gmail poller finds a new newsletter or the
+    Chrome history watcher detects a new topic.  Judges can call this to trigger
+    the autonomous loop without needing real credentials.
+
+    Body (JSON): {"observation": str, "source": str, "profile_id": str}
+    """
+    import uuid as _uuid
+    from datetime import datetime as _dt, timezone as _tz
+    from trace.models import RawSignal, SignalSource
+    from trace.mcp.server import _pending_signals
+
+    body = await request.json()
+    observation = str(body.get("observation", "AI safety research deep dive")).strip()[:500]
+    source_str = str(body.get("source", "demo")).strip()
+    profile_id = str(body.get("profile_id", "default")).strip()
+
+    if not observation:
+        raise HTTPException(status_code=422, detail="observation must not be empty")
+
+    signal = RawSignal(
+        id=str(_uuid.uuid4()),
+        source=SignalSource.ENTIRE_IO,
+        content=observation,
+        timestamp=_dt.now(_tz.utc),
+        metadata={"submitted_by": source_str, "injected_via": "demo_endpoint"},
+    )
+    bucket = _pending_signals.setdefault(profile_id, [])
+    bucket.append(signal)
+    _log.info("demo/inject-signal: profile=%s pending=%d", profile_id, len(bucket))
+    return {
+        "status": "ok",
+        "signal_id": signal.id,
+        "pending_count": len(bucket),
+        "profile_id": profile_id,
+        "message": "Signal injected. Run detect_and_act to process it into the curiosity graph.",
+    }
+
+
+# ── Approvals endpoints (Tier B: Gmail drafts, Reddit posts) ──────────────────
+
+@app.get("/approvals")
+async def list_approvals(profile_id: str = "default") -> dict[str, Any]:
+    """List all pending Tier B actions awaiting user approval."""
+    from trace.agent.approvals import get_approvals_queue
+    queue = get_approvals_queue()
+    pending = await queue.list_pending(profile_id)
+    return {
+        "pending": [a.to_dict() for a in pending],
+        "count": len(pending),
+        "profile_id": profile_id,
+    }
+
+
+@app.post("/approvals/{action_id}/approve")
+async def approve_action(action_id: str) -> dict[str, Any]:
+    """Approve a pending Tier B action (Gmail draft or Reddit post)."""
+    from trace.agent.approvals import get_approvals_queue
+    queue = get_approvals_queue()
+    action = await queue.approve(action_id)
+    if action is None:
+        raise HTTPException(status_code=404, detail="Action not found or already resolved")
+    return {"status": "approved", "action": action.to_dict()}
+
+
+@app.post("/approvals/{action_id}/reject")
+async def reject_action(action_id: str) -> dict[str, Any]:
+    """Reject a pending Tier B action."""
+    from trace.agent.approvals import get_approvals_queue
+    queue = get_approvals_queue()
+    action = await queue.reject(action_id)
+    if action is None:
+        raise HTTPException(status_code=404, detail="Action not found or already resolved")
+    return {"status": "rejected", "action": action.to_dict()}
 
 
 @app.get("/mcp-info")
