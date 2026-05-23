@@ -48,7 +48,7 @@ from trace.utils import strip_markdown_fence
 
 _log = logging.getLogger(__name__)
 
-_DEFAULT_MODEL = "claude-sonnet-4-6-20251001"
+_DEFAULT_MODEL = "claude-sonnet-4-6"
 _DEFAULT_MAX_TOKENS = 4096
 
 _SYSTEM_PROMPT = textwrap.dedent("""\

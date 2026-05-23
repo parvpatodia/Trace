@@ -66,7 +66,7 @@ class TopicExtractionError(Exception):
     """Raised when Claude's response cannot be parsed or the API call fails."""
 
 
-_DEFAULT_MODEL = "claude-sonnet-4-6-20251001"
+_DEFAULT_MODEL = "claude-sonnet-4-6"
 _DEFAULT_BATCH_SIZE = 100
 
 _SYSTEM_PROMPT = """You are a curiosity analyst. Your task is to identify topics of genuine intellectual curiosity from a person's digital signals.

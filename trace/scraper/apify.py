@@ -71,9 +71,15 @@ class ApifyScraper(ArticleScraper):
         self, topic: Topic, max_results: int = 5
     ) -> list[ScrapedArticle]:
         try:
-            items = await asyncio.to_thread(
-                self._run_actor, topic.name, min(max_results, 10)
+            items = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self._run_actor, topic.name, min(max_results, 10)
+                ),
+                timeout=90,  # Bing soft-blocks can cause infinite retries without this
             )
+        except asyncio.TimeoutError:
+            _log.warning("Apify actor timed out after 90s for topic %r — skipping", topic.name)
+            return []
         except Exception as exc:
             raise ScraperError(
                 self.source,
@@ -88,7 +94,8 @@ class ApifyScraper(ArticleScraper):
             run_input={
                 "queries": query,
                 "maxResultsPerQuery": limit,
-            }
+            },
+            timeout_secs=60,  # hard cap on actor wall-clock time
         )
         if not run:
             _log.warning("Apify actor run returned None for query %r", query)

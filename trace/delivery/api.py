@@ -772,7 +772,11 @@ async function generate() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!r2.ok) { const e = await r2.json(); throw new Error(e.detail || 'Generation failed'); }
+    if (!r2.ok) {
+      let msg = 'Generation failed';
+      try { const e = await r2.json(); msg = e.detail || msg; } catch { msg = await r2.text().catch(() => msg); }
+      throw new Error(msg);
+    }
     const data = await r2.json();
 
     stopStages();
@@ -939,6 +943,9 @@ async def generate_from_upload(
         )
     except PipelineError as e:
         raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        _log.exception("Unexpected pipeline error")
+        raise HTTPException(status_code=503, detail=f"Pipeline error: {e}") from e
     finally:
         # Delete uploaded files immediately after pipeline use — they contain
         # sensitive personal data (browsing/conversation history) and must not
