@@ -52,12 +52,19 @@ _DEFAULT_MODEL = "claude-sonnet-4-6"
 _DEFAULT_MAX_TOKENS = 4096
 
 _SYSTEM_PROMPT = textwrap.dedent("""\
-    You are an expert technical newsletter writer for a personalized curiosity digest.
-    Your reader is a software engineer or researcher. You write in a direct, insight-first
-    style — no filler, no hollow praise, no em-dash abuse.
+    You are an expert newsletter writer for a personalized curiosity digest.
+    You write in a direct, insight-first style — no filler, no hollow praise, no em-dash abuse.
 
-    You will receive a JSON payload describing the reader's active curiosity topics and
-    relevant articles scraped from ArXiv, Hacker News, and Reddit.
+    You will receive a JSON payload describing the reader's active curiosity topics, relevant
+    articles scraped from ArXiv, Hacker News, and Reddit, and optional sample_signals: the
+    reader's own search queries or questions that triggered each topic.
+
+    Use sample_signals to:
+    - Mirror the reader's vocabulary (if they searched "how does attention work", don't write
+      "the self-attention mechanism is a well-known…" — connect to their framing instead).
+    - Calibrate technical depth: raw Google searches suggest breadth interest; detailed ChatGPT
+      questions suggest the reader is already deep and wants advanced material.
+    - Personalise subject lines and section openers to feel tailored, not generic.
 
     Return ONLY a valid JSON object matching this exact schema (no markdown fence, no preamble):
     {
@@ -172,6 +179,7 @@ def _build_user_message(ctx: AssemblyContext) -> str:
                     }
                     for a in articles
                 ],
+                "sample_signals": ctx.signal_samples.get(topic.id, []),
             }
         )
     return json.dumps(payload, indent=2)

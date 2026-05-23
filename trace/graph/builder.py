@@ -227,9 +227,10 @@ class CuriosityGraphBuilder:
             and span_days >= self._debt_threshold_days
         )
         if is_recurring:
-            debt_score = (
+            debt_score = min(
+                5.0,
                 (frequency / self._debt_threshold_occurrences)
-                * (span_days / self._debt_threshold_days)
+                * (span_days / self._debt_threshold_days),
             )
             curiosity_type = CuriosityType.RECURRING
         else:

@@ -325,7 +325,7 @@ class TestScrapeArticles:
         # Track what articles are passed to assembler
         captured_articles: list[list[ScrapedArticle]] = []
         real_assemble = assembler.assemble.side_effect
-        def capture_and_call(g, articles):
+        def capture_and_call(g, articles, **kwargs):
             captured_articles.append(articles)
             return ctx
         assembler.assemble.side_effect = capture_and_call

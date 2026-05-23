@@ -45,10 +45,13 @@ WHY ALGOLIA NOT THE OFFICIAL HN FIREBASE API:
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
+
+_log = logging.getLogger(__name__)
 
 from trace.models import ContentSource, ScrapedArticle, Topic
 from trace.scraper.base import ArticleScraper, ScraperError
@@ -81,17 +84,26 @@ class HackerNewsScraper(ArticleScraper):
     async def scrape(
         self, topic: Topic, max_results: int = 5
     ) -> list[ScrapedArticle]:
-        cutoff_ts = int(
-            (datetime.now(timezone.utc) - timedelta(days=_LOOKBACK_DAYS)).timestamp()
-        )
-        params = {
-            "query": topic.name,
-            "tags": "story",
-            "hitsPerPage": str(max_results),
-            "numericFilters": f"created_at_i>{cutoff_ts}",
-        }
-        data = await self._fetch(params)
-        return self._parse(data, topic, max_results)
+        now = datetime.now(timezone.utc)
+        # Try 30-day window first; fall back to 90 days for niche topics that
+        # don't generate frequent HN coverage.
+        for lookback_days in (_LOOKBACK_DAYS, _LOOKBACK_DAYS * 3):
+            cutoff_ts = int((now - timedelta(days=lookback_days)).timestamp())
+            params = {
+                "query": topic.name,
+                "tags": "story",
+                "hitsPerPage": str(max_results),
+                "numericFilters": f"created_at_i>{cutoff_ts}",
+            }
+            data = await self._fetch(params)
+            articles = self._parse(data, topic, max_results)
+            if articles:
+                return articles
+            _log.debug(
+                "HN: 0 hits for '%s' with %d-day window, widening to %d days",
+                topic.name, lookback_days, lookback_days * 3,
+            )
+        return []
 
     async def _fetch(self, params: dict[str, str]) -> dict[str, Any]:
         try:

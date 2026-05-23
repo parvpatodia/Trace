@@ -135,24 +135,39 @@ class TopicExtractor:
         _log.info("Extracting topics from %d signals in %d batch(es)", len(signals), len(batches))
 
         all_raw: list[RawTopicData] = []
+        known_topics: list[str] = []
         for i, batch in enumerate(batches):
             _log.debug("Processing batch %d/%d (%d signals)", i + 1, len(batches), len(batch))
-            batch_topics = await asyncio.to_thread(self._call_api, batch, valid_ids)
+            batch_topics = await asyncio.to_thread(self._call_api, batch, valid_ids, known_topics)
             all_raw.extend(batch_topics)
+            # Accumulate topic names so later batches can reuse them instead of
+            # inventing slight variations (e.g. "llm fine-tuning" vs "llm finetuning").
+            known_topics = list(dict.fromkeys(known_topics + [t["name"] for t in batch_topics]))
 
         merged = self._merge_topics(all_raw)
         _log.info("Extracted %d unique topic(s)", len(merged))
         return merged
 
     def _call_api(
-        self, batch: list[RawSignal], valid_ids: frozenset[str]
+        self,
+        batch: list[RawSignal],
+        valid_ids: frozenset[str],
+        known_topics: list[str] | None = None,
     ) -> list[RawTopicData]:
         payload = [
             {"id": s.id, "source": s.source.value, "content": s.content}
             for s in batch
         ]
+        preamble = ""
+        if known_topics:
+            names_json = json.dumps(known_topics, ensure_ascii=False)
+            preamble = (
+                f"Topics already identified from earlier batches: {names_json}\n"
+                "Reuse these exact names when signals clearly belong to the same topic.\n\n"
+            )
         user_text = (
-            "Here are the signals to analyze:\n\n"
+            preamble
+            + "Here are the signals to analyze:\n\n"
             + json.dumps(payload, ensure_ascii=False, indent=2)
         )
 

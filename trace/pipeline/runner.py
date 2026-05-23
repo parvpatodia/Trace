@@ -207,7 +207,7 @@ class TracePipeline:
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        articles: list[ScrapedArticle] = []
+        raw_articles: list[ScrapedArticle] = []
         for (source, topic), result in zip(scraper_sources, results):
             if isinstance(result, Exception):
                 errors.append(
@@ -215,13 +215,30 @@ class TracePipeline:
                 )
                 _log.warning("Scraper %s failed for topic '%s': %s", source.value, topic.name, result)
             else:
-                articles.extend(result)
+                raw_articles.extend(result)
 
-        _log.info("scrape_articles: %d article(s) collected", len(articles))
+        # Deduplicate by URL across all scrapers — keep the copy with the highest
+        # relevance_score so the best-ranked match survives when e.g. ArXiv and
+        # Apify both return the same paper.
+        seen_urls: dict[str, ScrapedArticle] = {}
+        for article in raw_articles:
+            existing = seen_urls.get(article.url)
+            if existing is None or article.relevance_score > existing.relevance_score:
+                seen_urls[article.url] = article
+        articles = list(seen_urls.values())
+
+        _log.info(
+            "scrape_articles: %d article(s) collected (%d deduped from %d)",
+            len(articles), len(raw_articles) - len(articles), len(raw_articles),
+        )
         return {"articles": articles, "errors": errors}
 
     async def _node_assemble_context(self, state: _State) -> dict:
-        ctx = self._assembler.assemble(state["graph"], state["articles"])
+        ctx = self._assembler.assemble(
+            state["graph"],
+            state["articles"],
+            signals=state.get("signals") or [],
+        )
         return {"context": ctx}
 
     async def _node_compose_newsletter(self, state: _State) -> dict:
