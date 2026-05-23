@@ -1222,6 +1222,7 @@ async function generate() {
     for (const f of googleFiles) {
       const fd = new FormData();
       fd.append('file', f);
+      fd.append('file_type', 'history');  // explicit — bypass filename heuristic
       const r = await fetch('/upload', { method: 'POST', body: fd });
       if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Upload failed: ' + f.name); }
       historyUploadIds.push((await r.json()).upload_id);
@@ -1450,12 +1451,19 @@ async def generate_from_upload(
     settings = get_settings()
     upload_dir = settings.upload_dir
 
-    # Resolve history paths and merge if multiple were uploaded
+    # Resolve history paths and merge if multiple were uploaded.
+    # Try "history_" prefix first; fall back to any prefix in case the type
+    # heuristic in /upload misclassified the file (e.g. a ZIP with a generic name).
     history_paths: list[Path] = []
     for uid in unique_history_ids:
-        p = upload_dir / f"history_{uid}.json"
-        if not p.exists():
-            raise HTTPException(status_code=404, detail=f"Upload {uid} not found")
+        p: Path | None = None
+        for prefix in ("history", "youtube", "chatgpt"):
+            candidate = upload_dir / f"{prefix}_{uid}.json"
+            if candidate.exists():
+                p = candidate
+                break
+        if p is None:
+            raise HTTPException(status_code=404, detail=f"Upload {uid} not found — the file may have expired or the server restarted")
         history_paths.append(p)
 
     history_path: Path | None = None
@@ -1470,16 +1478,24 @@ async def generate_from_upload(
     youtube_path: Path | None = None
 
     if body.chatgpt_upload_id:
-        p = upload_dir / f"chatgpt_{body.chatgpt_upload_id}.json"
-        if not p.exists():
-            raise HTTPException(status_code=404, detail=f"Upload {body.chatgpt_upload_id} not found")
-        chatgpt_path = p
+        uid = body.chatgpt_upload_id
+        found: Path | None = next(
+            (upload_dir / f"{pfx}_{uid}.json" for pfx in ("chatgpt", "history", "youtube")
+             if (upload_dir / f"{pfx}_{uid}.json").exists()), None
+        )
+        if found is None:
+            raise HTTPException(status_code=404, detail=f"Upload {uid} not found")
+        chatgpt_path = found
 
     if body.youtube_upload_id:
-        p = upload_dir / f"youtube_{body.youtube_upload_id}.json"
-        if not p.exists():
-            raise HTTPException(status_code=404, detail=f"Upload {body.youtube_upload_id} not found")
-        youtube_path = p
+        uid = body.youtube_upload_id
+        found = next(
+            (upload_dir / f"{pfx}_{uid}.json" for pfx in ("youtube", "history", "chatgpt")
+             if (upload_dir / f"{pfx}_{uid}.json").exists()), None
+        )
+        if found is None:
+            raise HTTPException(status_code=404, detail=f"Upload {uid} not found")
+        youtube_path = found
 
     pipeline = _build_pipeline_from_settings(
         override_history_path=history_path,
