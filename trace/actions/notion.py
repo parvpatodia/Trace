@@ -23,7 +23,6 @@ from typing import Any
 _log = logging.getLogger(__name__)
 
 _NOTION_TOOL = "notion_create_page"
-_CONNECTION_NAME = "notion"
 
 
 async def create_topic_page(
@@ -43,6 +42,7 @@ async def create_topic_page(
     from trace.config import get_settings
 
     s = get_settings()
+    connection_name = s.scalekit_notion_connection
 
     # Build page content.
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -85,6 +85,7 @@ async def create_topic_page(
                 },
             },
             identifier=profile_id,
+            connection_name=connection_name,
         )
 
         if "error" in result:
@@ -93,11 +94,11 @@ async def create_topic_page(
             if "not_authorized" in err.lower() or "unauthorized" in err.lower():
                 link = await connect_get_authorization_link(
                     identifier=profile_id,
-                    connection_name=_CONNECTION_NAME,
+                    connection_name=connection_name,
                 )
                 return {
                     "status": "auth_required",
-                    "connection": _CONNECTION_NAME,
+                    "connection": connection_name,
                     "auth_link": link,
                     "topic": topic_name,
                 }

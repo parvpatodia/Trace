@@ -24,7 +24,6 @@ from typing import Any
 _log = logging.getLogger(__name__)
 
 _CALENDAR_TOOL = "google_calendar_create_event"
-_CONNECTION_NAME = "google_calendar"
 
 
 def _next_morning_slot() -> tuple[str, str]:
@@ -48,6 +47,9 @@ async def schedule_deep_dive(
     Never raises — all errors captured in response dict.
     """
     from trace.auth.scalekit import connect_execute_tool, connect_get_authorization_link, get_scalekit_client
+    from trace.config import get_settings
+
+    connection_name = get_settings().scalekit_calendar_connection
 
     event_title = f"🧠 Deep dive: {topic_name.title()}"
     start_time, end_time = _next_morning_slot()
@@ -80,6 +82,7 @@ async def schedule_deep_dive(
                 "colorId": "9",  # blueberry — used for focus blocks
             },
             identifier=profile_id,
+            connection_name=connection_name,
         )
 
         if "error" in result:
@@ -87,11 +90,11 @@ async def schedule_deep_dive(
             if "not_authorized" in err.lower() or "unauthorized" in err.lower():
                 link = await connect_get_authorization_link(
                     identifier=profile_id,
-                    connection_name=_CONNECTION_NAME,
+                    connection_name=connection_name,
                 )
                 return {
                     "status": "auth_required",
-                    "connection": _CONNECTION_NAME,
+                    "connection": connection_name,
                     "auth_link": link,
                     "topic": topic_name,
                 }

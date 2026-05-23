@@ -85,7 +85,7 @@ class TestNotionAction:
         from trace.actions.notion import create_topic_page
         result = await create_topic_page("foo", "bar")
         assert result["status"] == "auth_required"
-        assert result["connection"] == "notion"
+        assert result["connection"] == "notion-akG2REQU"
 
 
 # ── Calendar ───────────────────────────────────────────────────────────────────

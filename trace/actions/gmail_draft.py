@@ -29,7 +29,6 @@ from typing import Any
 _log = logging.getLogger(__name__)
 
 _GMAIL_DRAFT_TOOL = "gmail_create_draft"
-_CONNECTION_NAME = "gmail"
 
 
 def _build_draft_body(topic_name: str, briefing: str, source_urls: list[str]) -> str:
@@ -67,6 +66,9 @@ async def create_digest_draft(
     Returns: {"status": "created", "draft_id": str, "subject": str, ...}
     """
     from trace.auth.scalekit import connect_execute_tool, connect_get_authorization_link, get_scalekit_client
+    from trace.config import get_settings
+
+    connection_name = get_settings().scalekit_gmail_connection
 
     subject = f"[Trace] Curiosity digest: {topic_name.title()}"
     body = _build_draft_body(topic_name, briefing, source_urls or [])
@@ -91,6 +93,7 @@ async def create_digest_draft(
                 "bodyType": "text/plain",
             },
             identifier=profile_id,
+            connection_name=connection_name,
         )
 
         if "error" in result:
@@ -98,11 +101,11 @@ async def create_digest_draft(
             if "not_authorized" in err.lower() or "unauthorized" in err.lower():
                 link = await connect_get_authorization_link(
                     identifier=profile_id,
-                    connection_name=_CONNECTION_NAME,
+                    connection_name=connection_name,
                 )
                 return {
                     "status": "auth_required",
-                    "connection": _CONNECTION_NAME,
+                    "connection": connection_name,
                     "auth_link": link,
                     "topic": topic_name,
                 }

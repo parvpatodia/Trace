@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     scalekit_apify_connection_name: str = "apify-mcp"
     # Per-tenant identifier scoping connected accounts (email or UUID in prod).
     scalekit_default_identifier: str = "default"
+
+    # Scalekit Connect — exact connector slugs from the Scalekit dashboard.
+    # Format: <service>-<random_id> as shown in Connect → Connectors.
+    scalekit_gmail_connection: str = "gmail"
+    scalekit_calendar_connection: str = "googlecalendar-fe75NXhO"
+    scalekit_notion_connection: str = "notion-akG2REQU"
+    scalekit_slack_connection: str = "slack-RLnbqcmP"
     # When set, the MCP server enforces OAuth 2.1 bearer-token auth via Scalekit.
     scalekit_mcp_resource_id: str | None = None
     # Public base URL of this server — used as JWT audience for MCP Auth.

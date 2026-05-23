@@ -27,7 +27,6 @@ from typing import Any
 _log = logging.getLogger(__name__)
 
 _SLACK_TOOL = "slack_send_message"
-_CONNECTION_NAME = "slack"
 
 # Hard-coded demo channel — prevents injection. Override only via env.
 _DEMO_CHANNEL = "#trace-demo"
@@ -45,6 +44,9 @@ async def send_pattern_alert(
     Never raises — all errors captured in response dict.
     """
     from trace.auth.scalekit import connect_execute_tool, connect_get_authorization_link, get_scalekit_client
+    from trace.config import get_settings
+
+    connection_name = get_settings().scalekit_slack_connection
 
     # Whitelist channels — security boundary.
     allowed = {None, "#trace-demo", "self", _DEMO_CHANNEL}
@@ -69,6 +71,7 @@ async def send_pattern_alert(
                 "icon_emoji": ":brain:",
             },
             identifier=profile_id,
+            connection_name=connection_name,
         )
 
         if "error" in result:
@@ -76,11 +79,11 @@ async def send_pattern_alert(
             if "not_authorized" in err.lower() or "not_in_channel" in err.lower():
                 link = await connect_get_authorization_link(
                     identifier=profile_id,
-                    connection_name=_CONNECTION_NAME,
+                    connection_name=connection_name,
                 )
                 return {
                     "status": "auth_required",
-                    "connection": _CONNECTION_NAME,
+                    "connection": connection_name,
                     "auth_link": link,
                     "channel": target_channel,
                 }

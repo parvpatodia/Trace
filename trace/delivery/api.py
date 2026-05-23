@@ -860,24 +860,24 @@ _FRONTEND_HTML = """<!DOCTYPE html>
         <div style="color:var(--muted);font-size:0.75rem;margin-bottom:0.7rem;">
           Auto-save emerging topics as Notion pages (Tier A action).
         </div>
-        <button onclick="connectService('notion')" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:5px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">Connect Notion</button>
-        <span id="notion-status" style="color:var(--muted);font-size:0.72rem;margin-left:0.5rem;"></span>
+        <button onclick="connectService('notion-akG2REQU')" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:5px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">Connect Notion</button>
+        <span id="notion-akG2REQU-status" style="color:var(--muted);font-size:0.72rem;margin-left:0.5rem;"></span>
       </div>
       <div style="background:var(--surface2,#1e293b);border:1px solid #334155;border-radius:8px;padding:1rem;">
         <div style="font-weight:600;color:#f1f5f9;margin-bottom:0.4rem;">📅 Calendar</div>
         <div style="color:var(--muted);font-size:0.75rem;margin-bottom:0.7rem;">
           Schedule deep-dive time for emerging interests (Tier A).
         </div>
-        <button onclick="connectService('google_calendar')" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:5px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">Connect Calendar</button>
-        <span id="google_calendar-status" style="color:var(--muted);font-size:0.72rem;margin-left:0.5rem;"></span>
+        <button onclick="connectService('googlecalendar-fe75NXhO')" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:5px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">Connect Calendar</button>
+        <span id="googlecalendar-fe75NXhO-status" style="color:var(--muted);font-size:0.72rem;margin-left:0.5rem;"></span>
       </div>
       <div style="background:var(--surface2,#1e293b);border:1px solid #334155;border-radius:8px;padding:1rem;">
         <div style="font-weight:600;color:#f1f5f9;margin-bottom:0.4rem;">💬 Slack</div>
         <div style="color:var(--muted);font-size:0.75rem;margin-bottom:0.7rem;">
           DM yourself when a pattern triggers (Tier A).
         </div>
-        <button onclick="connectService('slack')" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:5px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">Connect Slack</button>
-        <span id="slack-status" style="color:var(--muted);font-size:0.72rem;margin-left:0.5rem;"></span>
+        <button onclick="connectService('slack-RLnbqcmP')" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:5px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">Connect Slack</button>
+        <span id="slack-RLnbqcmP-status" style="color:var(--muted);font-size:0.72rem;margin-left:0.5rem;"></span>
       </div>
       <div style="background:var(--surface2,#1e293b);border:1px solid #334155;border-radius:8px;padding:1rem;">
         <div style="font-weight:600;color:#f1f5f9;margin-bottom:0.4rem;">🟠 Reddit</div>

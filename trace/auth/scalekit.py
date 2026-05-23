@@ -269,15 +269,13 @@ async def connect_execute_tool(
     tool_name: str,
     tool_input: dict[str, Any],
     identifier: str,
+    connection_name: str | None = None,
 ) -> dict[str, Any]:
     """Execute a tool against a connected account through Scalekit.
 
-    Example:
-        result = await connect_execute_tool(
-            tool_name="apifymcp_call_actor",
-            tool_input={"actor_id": "apify/rag-web-browser", "input": {...}},
-            identifier="user@example.com",
-        )
+    connection_name: Scalekit connector slug (e.g. "slack-RLnbqcmP").
+      Required to route calls to the correct connector when multiple
+      connectors of the same type exist in a workspace.
 
     The Apify token lives in Scalekit's Vault — never in our env vars.
     Returns {} when Scalekit is unconfigured or on error.
@@ -287,11 +285,14 @@ async def connect_execute_tool(
         return {}
 
     def _call() -> Any:
-        return client.connect.execute_tool(  # type: ignore[union-attr]
-            tool_name=tool_name,
-            tool_input=tool_input,
-            identifier=identifier,
-        )
+        kwargs: dict[str, Any] = {
+            "tool_name": tool_name,
+            "tool_input": tool_input,
+            "identifier": identifier,
+        }
+        if connection_name:
+            kwargs["connection_name"] = connection_name
+        return client.connect.execute_tool(**kwargs)  # type: ignore[union-attr]
 
     try:
         result = await asyncio.to_thread(_call)
