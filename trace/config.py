@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     )
 
     anthropic_api_key: str
-    anthropic_model: str = "claude-sonnet-4-6-20251001"
+    anthropic_model: str = "claude-sonnet-4-6"
 
     apify_api_token: str = ""
     # Use a compute-unit-only actor (not a monthly-rental actor) on the free tier.
