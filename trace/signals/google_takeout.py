@@ -86,6 +86,28 @@ class GoogleTakeoutCollector(SignalCollector):
         "file://",
     })
 
+    # Infrastructure domains that appear in browser history but carry zero
+    # content value: tracking pixels, ad networks, OAuth redirects, CDN assets.
+    # Blocking these prevents noise topics like "google analytics" or
+    # "doubleclick tracking" from surfacing in the curiosity graph.
+    _NOISE_DOMAINS: frozenset[str] = frozenset({
+        "google-analytics.com",
+        "analytics.google.com",
+        "doubleclick.net",
+        "googletagmanager.com",
+        "googlesyndication.com",
+        "googleadservices.com",
+        "accounts.google.com",
+        "ssl.gstatic.com",
+        "www.gstatic.com",
+        "fonts.googleapis.com",
+        "fonts.gstatic.com",
+        "oauth2.googleapis.com",
+        "apis.google.com",
+        "safebrowsing.googleapis.com",
+        "pagead2.googlesyndication.com",
+    })
+
     _MIN_TITLE_LENGTH: int = 3
 
     def __init__(
@@ -235,4 +257,17 @@ class GoogleTakeoutCollector(SignalCollector):
         )
 
     def _should_skip_url(self, url: str) -> bool:
-        return any(url.startswith(prefix) for prefix in self._SKIP_URL_PREFIXES)
+        if any(url.startswith(prefix) for prefix in self._SKIP_URL_PREFIXES):
+            return True
+        # Block known tracking/infrastructure domains — these are never content.
+        # Check both exact match and subdomain match (e.g. sub.doubleclick.net).
+        try:
+            netloc = urlparse(url).netloc.lower()
+            # Strip leading "www." for canonical comparison
+            bare = netloc[4:] if netloc.startswith("www.") else netloc
+            for noise in self._NOISE_DOMAINS:
+                if bare == noise or bare.endswith("." + noise):
+                    return True
+        except Exception:
+            pass
+        return False

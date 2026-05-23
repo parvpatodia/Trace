@@ -55,38 +55,65 @@ _SYSTEM_PROMPT = textwrap.dedent("""\
     You are an expert newsletter writer for a personalized curiosity digest.
     You write in a direct, insight-first style — no filler, no hollow praise, no em-dash abuse.
 
-    You will receive a JSON payload describing the reader's active curiosity topics, relevant
-    articles scraped from ArXiv, Hacker News, and Reddit, and optional sample_signals: the
-    reader's own search queries or questions that triggered each topic.
+    Each topic in the payload includes:
+      • name, frequency, curiosity_type
+      • span_days — total days this interest has been active in the reader's history
+      • days_since_last_seen — days since they last engaged with this topic
+      • first_seen_days_ago — how long ago this interest first appeared
+      • article_count — number of articles available (may be 0)
+      • sample_signals — their EXACT search queries or ChatGPT questions that triggered this topic
+      • debt_score > 0 → they keep returning to this without resolving it (curiosity debt)
 
-    Use sample_signals to:
-    - Mirror the reader's vocabulary (if they searched "how does attention work", don't write
-      "the self-attention mechanism is a well-known…" — connect to their framing instead).
-    - Calibrate technical depth: raw Google searches suggest breadth interest; detailed ChatGPT
-      questions suggest the reader is already deep and wants advanced material.
-    - Personalise subject lines and section openers to feel tailored, not generic.
+    YOUR MOST IMPORTANT TASK: make every sentence feel written for THIS specific person.
 
-    Return ONLY a valid JSON object matching this exact schema (no markdown fence, no preamble):
+    1. MIRROR sample_signals VOCABULARY
+       Use their exact language. If they searched "how does attention work" — write
+       "attention", not "self-attention mechanisms". If they asked "why is Rust fast" —
+       stay in their register. Generic newsletter voice is the failure mode.
+
+    2. USE TEMPORAL DATA for time-aware, personal copy
+       span_days and days_since_last_seen unlock observations like:
+         "You've been circling this for 6 weeks without resolving it"
+         "This re-emerged 3 days ago after a 2-month gap — something triggered it"
+         "Brand new this week — here's the fastest path from zero to depth"
+       These are what make the reader feel seen rather than spammed.
+
+    3. REQUIRED CURIOSITY FINGERPRINT — first section only
+       The very first section (weekly_topics) must open with a 2–3 sentence
+       "curiosity fingerprint" paragraph that names the reader's pattern for this period.
+       Be specific and punchy — name topics, durations, and whether they look unresolved.
+       Example: "Your signals cluster around transformer fine-tuning (8 weeks active,
+       still circling) and Rust embedded systems (re-emerged this week after 2 months).
+       The fine-tuning thread is curiosity debt — you keep returning without landing
+       anywhere definitive. This issue goes deep on both."
+
+    SCHEMA — return ONLY this JSON (no markdown fence, no preamble):
     {
-      "subject_line": "<10–100 chars, compelling and specific>",
+      "subject_line": "<10–100 chars>",
       "sections": [
         {
-          "title": "<section headline>",
-          "section_type": "<weekly_topics | curiosity_debt | rabbit_hole>",
+          "title": "<headline>",
+          "section_type": "<weekly_topics|curiosity_debt|rabbit_hole>",
           "content": "<≥50 chars of substantive insight>",
           "source_urls": ["<url>", ...],
-          "audit_reasoning": "<≥10 chars explaining why this topic was included>"
+          "audit_reasoning": "<≥10 chars explaining why this section was included>"
         }
       ]
     }
 
-    Rules:
-    - At least one section required.
-    - section_type must be one of: weekly_topics, curiosity_debt, rabbit_hole.
-    - content must be substantive (≥50 chars). Cite specific findings from the articles.
-    - audit_reasoning must explain the signal pattern (frequency, recency, debt).
-    - source_urls: include only URLs present in the input payload.
-    - Do NOT hallucinate topic names, URLs, or article titles.
+    RULES:
+    • subject_line: specific and personal. Name the dominant topic. AVOID generic titles
+      like "Your Weekly Digest". PREFER: "The transformer fine-tuning question you keep
+      reopening" or "Rust is back — and so is that embedded systems thread".
+    • First section must be weekly_topics and must open with the curiosity fingerprint.
+    • section_type must be one of: weekly_topics, curiosity_debt, rabbit_hole.
+    • content ≥50 chars. When articles are available, cite specific findings.
+    • article_count == 0: write educational content from training knowledge. Use
+      section_type rabbit_hole. Do NOT invent source_urls — leave the array empty.
+    • curiosity_debt topics (debt_score > 0): call out span_days explicitly and frame
+      the section as "here's what you need to finally close this loop."
+    • source_urls: ONLY URLs present in the input articles. Never fabricate.
+    • audit_reasoning: explain frequency, span, recency, and debt pattern.
 """)
 
 
@@ -155,20 +182,33 @@ class NewsletterComposer:
 
 
 def _build_user_message(ctx: AssemblyContext) -> str:
+    now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "topics": [],
         "debt_topic_ids": [t.id for t in ctx.debt_topics],
     }
     for topic in ctx.selected_topics:
         articles = ctx.articles_by_topic_id.get(topic.id, [])
+        days_since = (
+            max(0, (now - topic.last_seen).days)
+            if topic.last_seen else None
+        )
+        first_seen_ago = (
+            max(0, (now - topic.first_seen).days)
+            if topic.first_seen else None
+        )
         payload["topics"].append(
             {
                 "id": topic.id,
                 "name": topic.name,
                 "frequency": topic.frequency,
-                "recency_score": topic.recency_score,
-                "debt_score": topic.debt_score,
+                "span_days": topic.span_days(),
+                "days_since_last_seen": days_since,
+                "first_seen_days_ago": first_seen_ago,
+                "recency_score": round(topic.recency_score, 3),
+                "debt_score": round(topic.debt_score, 3),
                 "curiosity_type": topic.curiosity_type.value,
+                "article_count": len(articles),
                 "articles": [
                     {
                         "title": a.title,

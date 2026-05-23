@@ -91,8 +91,11 @@ class GenerateResponse(BaseModel):
     # Present after a full pipeline run. Use POST /newsletter/regenerate/{profile_id}
     # to generate a fresh newsletter from the same interests without re-uploading.
     profile_id: str = ""
-    # topic_names: human-readable curiosity topics inferred from the user's signals.
+    # topic_names: curiosity topics sorted by composite_score descending.
     topic_names: list[str] = []
+    # topic_scores: composite_score for each topic (parallel to topic_names).
+    # Normalised by the caller — [0,1] relative to the highest-scoring topic.
+    topic_scores: list[float] = []
 
 
 class UploadResponse(BaseModel):
@@ -905,7 +908,18 @@ function renderNewsletter(data) {
   // Curiosity profile: show inferred topics + daily regen link
   const profileEl = document.getElementById('curiosity-profile');
   if (data.topic_names && data.topic_names.length > 0) {
-    const chips = data.topic_names.map(t => `<span class="topic-chip">${esc(t)}</span>`).join('');
+    // topic_scores are already normalised 0–1 relative to the strongest topic.
+    // Use them to modulate chip visual intensity so top interests stand out.
+    const scores = data.topic_scores || [];
+    const chips = data.topic_names.map((t, i) => {
+      const s = scores[i] != null ? scores[i] : 0;
+      // Background alpha: 0.12 (weakest) → 0.45 (strongest)
+      // Border alpha:     0.20 (weakest) → 0.75 (strongest)
+      const bg  = (0.12 + 0.33 * s).toFixed(2);
+      const bdr = (0.20 + 0.55 * s).toFixed(2);
+      const tip = scores[i] != null ? ` title="Relative curiosity strength: ${Math.round(s*100)}%"` : '';
+      return `<span class="topic-chip"${tip} style="background:rgba(99,102,241,${bg});border-color:rgba(99,102,241,${bdr})">${esc(t)}</span>`;
+    }).join('');
     const regenHtml = data.profile_id ? `
       <div class="regen-bar">
         <button class="btn-regen" id="regen-btn" onclick="regenerate()">↺ Regenerate with today's articles</button>
@@ -1220,7 +1234,13 @@ async def generate_from_upload(
     newsletter = result.newsletter
     # Store the curiosity graph (not raw signals) for daily regeneration
     profile_id = _store_profile(result.graph)
-    topic_names = [t.name for t in result.graph.topics]
+    sorted_topics = sorted(
+        result.graph.topics, key=lambda t: t.composite_score(), reverse=True
+    )
+    raw_scores = [t.composite_score() for t in sorted_topics]
+    max_score = max(raw_scores) if raw_scores else 1.0
+    topic_names = [t.name for t in sorted_topics]
+    topic_scores = [round(s / max_score, 4) for s in raw_scores]
 
     response = GenerateResponse(
         id=newsletter.id,
@@ -1242,6 +1262,7 @@ async def generate_from_upload(
         generated_for=current_user.display_name if current_user else "",
         profile_id=profile_id,
         topic_names=topic_names,
+        topic_scores=topic_scores,
     )
     _store_newsletter(response)
     return response
@@ -1265,6 +1286,12 @@ async def generate_newsletter(
         raise HTTPException(status_code=503, detail=str(e))
 
     newsletter = result.newsletter
+    sorted_topics_g = sorted(
+        result.graph.topics, key=lambda t: t.composite_score(), reverse=True
+    )
+    raw_scores_g = [t.composite_score() for t in sorted_topics_g]
+    max_score_g = max(raw_scores_g) if raw_scores_g else 1.0
+    profile_id_g = _store_profile(result.graph)
     response = GenerateResponse(
         id=newsletter.id,
         subject_line=newsletter.subject_line,
@@ -1283,6 +1310,9 @@ async def generate_newsletter(
         generated_at=newsletter.generated_at.isoformat(),
         errors=result.errors,
         generated_for=current_user.display_name if current_user else "",
+        profile_id=profile_id_g,
+        topic_names=[t.name for t in sorted_topics_g],
+        topic_scores=[round(s / max_score_g, 4) for s in raw_scores_g],
     )
     _store_newsletter(response)
     return response
@@ -1340,7 +1370,11 @@ async def regenerate_newsletter(
         raise HTTPException(status_code=503, detail=f"Pipeline error: {e}") from e
 
     newsletter = result.newsletter
-    topic_names = [t.name for t in graph.topics]
+    sorted_topics_r = sorted(
+        graph.topics, key=lambda t: t.composite_score(), reverse=True
+    )
+    raw_scores_r = [t.composite_score() for t in sorted_topics_r]
+    max_score_r = max(raw_scores_r) if raw_scores_r else 1.0
     response = GenerateResponse(
         id=newsletter.id,
         subject_line=newsletter.subject_line,
@@ -1360,7 +1394,8 @@ async def regenerate_newsletter(
         errors=result.errors,
         generated_for=current_user.display_name if current_user else "",
         profile_id=profile_id,
-        topic_names=topic_names,
+        topic_names=[t.name for t in sorted_topics_r],
+        topic_scores=[round(s / max_score_r, 4) for s in raw_scores_r],
     )
     _store_newsletter(response)
     return response
