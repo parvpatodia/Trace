@@ -34,9 +34,12 @@ Pipeline construction:
 
 from __future__ import annotations
 
+import io
+import json as _json
 import logging
 import re
 import uuid
+import zipfile
 from collections import OrderedDict
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -375,378 +378,527 @@ _FRONTEND_HTML = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Trace — Your Curiosity, Distilled</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0f0f11;
-    --surface: #1a1a1f;
-    --border: #2a2a35;
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c26;
+    --border: #252535;
+    --border2: #2e2e42;
     --accent: #6366f1;
     --accent-hover: #818cf8;
+    --accent-dim: rgba(99,102,241,0.12);
     --text: #e2e8f0;
-    --muted: #94a3b8;
+    --muted: #8892a4;
+    --muted2: #6b7280;
     --error: #f87171;
     --success: #34d399;
+    --warn: #fbbf24;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 2rem 1rem;
+    padding: 2.5rem 1rem 4rem;
+    -webkit-font-smoothing: antialiased;
   }
-  .container { width: 100%; max-width: 760px; }
+  .container { width: 100%; max-width: 780px; }
+
+  /* ── Header ── */
   header { text-align: center; margin-bottom: 3rem; }
-  header h1 { font-size: 2.5rem; font-weight: 700; letter-spacing: -0.03em; }
-  header h1 span { color: var(--accent); }
-  header p { color: var(--muted); margin-top: 0.5rem; font-size: 1.05rem; }
+  .logo { font-size: 2.8rem; font-weight: 700; letter-spacing: -0.04em; line-height: 1; }
+  .logo span { color: var(--accent); }
+  .tagline { color: var(--muted); margin-top: 0.6rem; font-size: 1rem; font-weight: 400; }
+
+  /* ── Cards ── */
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 2rem;
-    margin-bottom: 1.5rem;
+    border-radius: 14px;
+    padding: 1.75rem 2rem;
+    margin-bottom: 1.25rem;
   }
-  .card h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; }
-  .upload-area {
-    border: 2px dashed var(--border);
+  .card-title {
+    font-size: 0.7rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--muted2); margin-bottom: 1.25rem;
+  }
+
+  /* ── Source cards (stacked, all visible) ── */
+  .source-cards { display: flex; flex-direction: column; gap: 0.75rem; }
+  .source-card {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .source-card.has-file { border-color: rgba(99,102,241,0.5); }
+  .source-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.85rem 1.1rem; cursor: pointer; user-select: none;
+    gap: 0.75rem;
+  }
+  .source-card-left { display: flex; align-items: center; gap: 0.75rem; }
+  .source-icon { font-size: 1.3rem; flex-shrink: 0; line-height: 1; }
+  .source-name { font-size: 0.92rem; font-weight: 600; }
+  .source-desc { font-size: 0.78rem; color: var(--muted); margin-top: 0.1rem; }
+  .source-status {
+    font-size: 0.75rem; font-weight: 500;
+    color: var(--muted2); white-space: nowrap; flex-shrink: 0;
+  }
+  .source-status.chosen { color: var(--success); }
+  .expand-toggle {
+    color: var(--muted2); font-size: 0.65rem;
+    flex-shrink: 0; transition: transform 0.2s;
+  }
+  .source-card.expanded .expand-toggle { transform: rotate(180deg); }
+  .source-body { display: none; border-top: 1px solid var(--border2); padding: 1rem 1.1rem; }
+  .source-card.expanded .source-body { display: block; }
+  .how-to {
+    background: rgba(99,102,241,0.07);
+    border: 1px solid rgba(99,102,241,0.18);
     border-radius: 8px;
-    padding: 2.5rem;
+    padding: 0.85rem 1rem;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-bottom: 1rem;
+  }
+  .how-to strong { color: var(--text); }
+  .how-to ol { padding-left: 1.2rem; line-height: 2.1; }
+  .how-to code {
+    background: rgba(255,255,255,0.09);
+    padding: 0.1em 0.4em;
+    border-radius: 3px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.77rem;
+  }
+  .upload-zone {
+    border: 2px dashed var(--border2);
+    border-radius: 8px;
+    padding: 1.5rem;
     text-align: center;
     cursor: pointer;
     transition: border-color 0.2s, background 0.2s;
+    display: block;
   }
-  .upload-area:hover, .upload-area.drag-over {
+  .upload-zone:hover, .upload-zone.drag-over {
     border-color: var(--accent);
-    background: rgba(99,102,241,0.05);
+    background: rgba(99,102,241,0.06);
   }
-  .upload-area input { display: none; }
-  .upload-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
-  .upload-area p { color: var(--muted); font-size: 0.9rem; }
-  .upload-area strong { color: var(--text); display: block; margin-bottom: 0.25rem; }
-  .file-chosen { color: var(--success); font-weight: 600; margin-top: 0.5rem; }
-  .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
-  .tab {
-    flex: 1; padding: 0.6rem; text-align: center; border-radius: 6px;
-    cursor: pointer; font-size: 0.85rem; border: 1px solid var(--border);
-    color: var(--muted); transition: all 0.2s;
+  .upload-zone input { display: none; }
+  .upload-zone-label { font-size: 0.88rem; font-weight: 500; color: var(--text); }
+  .upload-zone-sub { font-size: 0.78rem; color: var(--muted); margin-top: 0.2rem; }
+  .upload-zone-chosen { font-size: 0.82rem; color: var(--success); font-weight: 500; margin-top: 0.5rem; }
+
+  /* ── Signal strength bar ── */
+  .signal-bar-row {
+    display: flex; align-items: center; gap: 0.6rem;
+    margin-top: 1.25rem; margin-bottom: 0.25rem;
   }
-  .tab.active { background: var(--accent); color: white; border-color: var(--accent); }
-  .tab-content { display: none; }
-  .tab-content.active { display: block; }
-  .instructions {
-    background: rgba(99,102,241,0.08);
-    border: 1px solid rgba(99,102,241,0.25);
-    border-radius: 8px;
-    padding: 1rem;
-    font-size: 0.85rem;
-    color: var(--muted);
-    margin-bottom: 1.25rem;
+  .signal-bar-label { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+  .signal-bar-track {
+    flex: 1; height: 4px; background: var(--border2);
+    border-radius: 2px; overflow: hidden;
   }
-  .instructions ol { padding-left: 1.25rem; line-height: 2; }
-  .instructions code {
-    background: rgba(255,255,255,0.08);
-    padding: 0.1em 0.4em;
-    border-radius: 3px;
-    font-family: monospace;
-    font-size: 0.8rem;
+  .signal-bar-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #6366f1, #818cf8);
+    border-radius: 2px;
+    transition: width 0.4s ease;
   }
+  .signal-bar-count { font-size: 0.75rem; color: var(--muted2); white-space: nowrap; }
+
+  /* ── Generate button & loading ── */
+  .gen-section { margin-top: 1.5rem; }
   button.primary {
-    width: 100%; padding: 0.875rem;
+    width: 100%; padding: 0.9rem;
     background: var(--accent); color: white;
-    border: none; border-radius: 8px;
-    font-size: 1rem; font-weight: 600;
-    cursor: pointer; transition: background 0.2s;
+    border: none; border-radius: 9px;
+    font-size: 0.97rem; font-weight: 600; letter-spacing: -0.01em;
+    cursor: pointer; transition: background 0.2s, transform 0.1s;
+    font-family: inherit;
   }
   button.primary:hover:not(:disabled) { background: var(--accent-hover); }
-  button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
-  .spinner {
-    display: none; width: 20px; height: 20px;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-top-color: white; border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 0 auto;
+  button.primary:active:not(:disabled) { transform: scale(0.99); }
+  button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .loading-wrap { display: none; flex-direction: column; align-items: center; gap: 0.75rem; padding: 1.25rem 0; }
+  .dots { display: flex; gap: 6px; align-items: center; }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); opacity: 0.3;
+    animation: dotPulse 1.4s ease-in-out infinite;
   }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .status {
-    text-align: center; padding: 1rem;
-    font-size: 0.9rem; color: var(--muted);
-    display: none;
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dotPulse {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(0.85); }
+    40% { opacity: 1; transform: scale(1); }
   }
-  .status.error { color: var(--error); }
-  #result { display: none; }
-  .newsletter-header {
+  .stage-msg { font-size: 0.88rem; color: var(--muted); text-align: center; min-height: 1.4em; }
+  .stage-msg.error { color: var(--error); }
+  .timing-hint {
+    font-size: 0.73rem; color: var(--muted2);
+    text-align: center; margin-top: 0.4rem;
+  }
+
+  /* ── Privacy note ── */
+  .privacy-note {
+    font-size: 0.78rem; color: var(--muted);
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.85rem 1.1rem;
+    margin-bottom: 1.25rem;
+    line-height: 1.65;
+  }
+  .privacy-note strong { color: var(--text); }
+
+  /* ── Result panel ── */
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  #result { display: none; animation: fadeSlideUp 0.4s ease; }
+  .result-header {
     border-bottom: 1px solid var(--border);
     padding-bottom: 1.25rem;
     margin-bottom: 1.5rem;
   }
-  .newsletter-header .label {
-    font-size: 0.75rem; text-transform: uppercase;
-    letter-spacing: 0.1em; color: var(--accent); font-weight: 600;
-    margin-bottom: 0.4rem;
+  .result-eyebrow {
+    font-size: 0.7rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--accent); margin-bottom: 0.4rem;
   }
-  .newsletter-header h2 { font-size: 1.5rem; font-weight: 700; line-height: 1.3; }
-  .meta { font-size: 0.8rem; color: var(--muted); margin-top: 0.4rem; }
-  .section-badge {
-    display: inline-block;
-    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
-    padding: 0.2em 0.6em; border-radius: 4px; font-weight: 600;
-    margin-bottom: 0.5rem;
+  .result-subject { font-size: 1.55rem; font-weight: 700; line-height: 1.3; letter-spacing: -0.02em; }
+  .result-meta { font-size: 0.78rem; color: var(--muted); margin-top: 0.45rem; }
+
+  /* ── Curiosity profile block ── */
+  .curiosity-profile {
+    margin-bottom: 1.5rem;
+    padding: 1.1rem 1.25rem;
+    background: rgba(52,211,153,0.04);
+    border: 1px solid rgba(52,211,153,0.18);
+    border-radius: 10px;
   }
-  .badge-weekly_topics { background: rgba(99,102,241,0.2); color: #818cf8; }
-  .badge-curiosity_debt { background: rgba(251,191,36,0.15); color: #fbbf24; }
-  .badge-rabbit_hole { background: rgba(52,211,153,0.15); color: #34d399; }
-  .section h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 0.6rem; line-height: 1.4; }
-  .section p { color: #cbd5e1; line-height: 1.75; font-size: 0.95rem; }
-  .sources { margin-top: 0.85rem; display: flex; flex-direction: column; gap: 0.35rem; }
-  .sources a {
-    font-size: 0.8rem; color: var(--accent);
-    text-decoration: none;
+  .profile-label {
+    font-size: 0.68rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    color: #34d399; margin-bottom: 0.75rem;
   }
-  .sources a:hover { color: var(--accent-hover); text-decoration: underline; }
-  details.audit {
-    margin-top: 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    overflow: hidden;
+  .topic-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
+  .topic-chip {
+    display: inline-block; font-size: 0.74rem; font-weight: 500;
+    padding: 0.28em 0.75em; border-radius: 20px;
+    background: rgba(99,102,241,0.15); color: #a5b4fc;
+    border: 1px solid rgba(99,102,241,0.3);
+    cursor: default; transition: background 0.15s;
   }
-  details.audit summary {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.78rem; color: var(--muted);
-    cursor: pointer; user-select: none;
-    list-style: none;
+  .topic-chip:hover { background: rgba(99,102,241,0.25); }
+  .regen-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .btn-regen {
+    padding: 0.4rem 1rem;
+    background: rgba(52,211,153,0.12);
+    border: 1px solid rgba(52,211,153,0.35);
+    border-radius: 7px;
+    color: #34d399;
+    font-size: 0.8rem; font-weight: 500;
+    cursor: pointer; transition: all 0.2s;
+    font-family: inherit;
   }
-  details.audit summary::-webkit-details-marker { display: none; }
-  details.audit summary::before { content: "▶  "; font-size: 0.6rem; }
-  details[open].audit summary::before { content: "▼  "; }
-  details.audit .audit-body {
-    padding: 0.75rem;
-    font-size: 0.82rem; color: var(--muted);
-    border-top: 1px solid var(--border);
-    background: rgba(0,0,0,0.2);
-    line-height: 1.6;
+  .btn-regen:hover:not(:disabled) { background: rgba(52,211,153,0.22); border-color: #34d399; }
+  .btn-regen:disabled { opacity: 0.45; cursor: not-allowed; }
+  .regen-link { font-size: 0.74rem; color: var(--muted); font-family: 'SF Mono', monospace; }
+  .regen-link a { color: var(--accent); text-decoration: none; }
+  .regen-link a:hover { text-decoration: underline; }
+
+  /* ── Download / share row ── */
+  .action-row {
+    display: flex; gap: 0.6rem; margin-bottom: 1.25rem; flex-wrap: wrap;
+    align-items: center;
   }
-  .errors-box {
-    margin-top: 1rem;
-    padding: 0.75rem 1rem;
-    background: rgba(248,113,113,0.08);
-    border: 1px solid rgba(248,113,113,0.25);
-    border-radius: 8px;
-    font-size: 0.82rem; color: #fca5a5;
+  .btn-action {
+    padding: 0.42rem 1rem;
+    background: transparent;
+    border: 1px solid var(--border2);
+    border-radius: 7px;
+    color: var(--muted);
+    font-size: 0.8rem; font-weight: 500;
+    cursor: pointer; transition: all 0.2s;
+    font-family: inherit;
   }
-  .errors-box h4 { margin-bottom: 0.4rem; font-weight: 600; }
-  .errors-box li { margin-left: 1rem; margin-top: 0.2rem; }
+  .btn-action:hover { border-color: var(--accent); color: var(--accent); }
+  .share-link { font-size: 0.74rem; color: var(--muted); margin-left: auto; }
+  .share-link a { color: var(--accent); text-decoration: none; }
+  .share-link a:hover { text-decoration: underline; }
+
+  /* ── Table of contents ── */
   .toc {
     margin-bottom: 1.5rem;
     padding: 1rem 1.25rem;
-    background: rgba(99,102,241,0.06);
-    border: 1px solid rgba(99,102,241,0.2);
-    border-radius: 8px;
+    background: rgba(99,102,241,0.05);
+    border: 1px solid rgba(99,102,241,0.18);
+    border-radius: 9px;
   }
   .toc-label {
-    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
-    color: var(--accent); font-weight: 600; margin-bottom: 0.6rem;
+    font-size: 0.68rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--accent); margin-bottom: 0.6rem;
   }
   .toc ol { padding-left: 1.2rem; }
-  .toc li { margin-top: 0.3rem; font-size: 0.88rem; line-height: 1.5; }
+  .toc li { margin-top: 0.3rem; font-size: 0.86rem; line-height: 1.5; }
   .toc a { color: var(--text); text-decoration: none; }
   .toc a:hover { color: var(--accent); }
-  .section { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
-  .section:last-child { border-bottom: none; }
-  .section-meta { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+
+  /* ── Newsletter sections ── */
+  .section {
+    margin-bottom: 2rem; padding-bottom: 1.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .section:last-child { border-bottom: none; margin-bottom: 0; }
+  .section-meta { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.55rem; }
+  .section-badge {
+    display: inline-block;
+    font-size: 0.67rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    padding: 0.22em 0.65em; border-radius: 4px;
+  }
+  .badge-weekly_topics { background: rgba(99,102,241,0.18); color: #818cf8; }
+  .badge-curiosity_debt { background: rgba(251,191,36,0.14); color: #fbbf24; }
+  .badge-rabbit_hole { background: rgba(52,211,153,0.14); color: #34d399; }
+  .section h3 { font-size: 1.12rem; font-weight: 700; margin-bottom: 0.7rem; line-height: 1.4; letter-spacing: -0.01em; }
+  .section .content-body p { color: #c8d3e0; line-height: 1.8; font-size: 0.94rem; margin-bottom: 0.85rem; }
+  .section .content-body p:last-child { margin-bottom: 0; }
+
+  /* ── Sources ── */
+  .sources { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.35rem; }
+  .sources a {
+    display: flex; align-items: center; gap: 0.45rem;
+    font-size: 0.79rem; color: var(--accent); text-decoration: none;
+  }
+  .sources a:hover { color: var(--accent-hover); }
   .src-badge {
-    display: inline-block; font-size: 0.65rem; font-weight: 700;
+    display: inline-block; font-size: 0.62rem; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.06em;
     padding: 0.15em 0.5em; border-radius: 3px;
-    vertical-align: middle; flex-shrink: 0;
+    flex-shrink: 0;
   }
   .src-arxiv { background: rgba(180,120,255,0.2); color: #c084fc; }
   .src-hn    { background: rgba(251,146,60,0.2);  color: #fb923c; }
   .src-web   { background: rgba(56,189,248,0.2);  color: #38bdf8; }
-  .sources a { display: flex; align-items: center; gap: 0.45rem; }
-  .sources a .link-text {
+  .link-text {
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    max-width: 520px;
+    max-width: 500px;
   }
-  .download-bar {
-    display: flex; gap: 0.75rem; margin-bottom: 1.25rem; flex-wrap: wrap;
-  }
-  .download-bar button {
-    padding: 0.45rem 1rem;
-    background: transparent;
+
+  /* ── Audit details ── */
+  details.audit {
+    margin-top: 0.85rem;
     border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--muted);
-    font-size: 0.82rem; cursor: pointer;
-    transition: all 0.2s;
+    border-radius: 7px;
+    overflow: hidden;
   }
-  .download-bar button:hover {
-    border-color: var(--accent); color: var(--accent);
+  details.audit summary {
+    padding: 0.5rem 0.85rem;
+    font-size: 0.76rem; color: var(--muted2);
+    cursor: pointer; user-select: none; list-style: none;
   }
-  .share-link {
-    font-size: 0.78rem; color: var(--muted); margin-top: 0.5rem;
+  details.audit summary::-webkit-details-marker { display: none; }
+  details.audit summary::before { content: "▶  "; font-size: 0.58rem; }
+  details[open].audit summary::before { content: "▼  "; }
+  details.audit .audit-body {
+    padding: 0.8rem;
+    font-size: 0.8rem; color: var(--muted);
+    border-top: 1px solid var(--border);
+    background: rgba(0,0,0,0.18);
+    line-height: 1.65;
   }
-  .share-link a { color: var(--accent); text-decoration: none; }
-  .share-link a:hover { text-decoration: underline; }
-  .curiosity-profile {
-    margin-bottom: 1.5rem;
-    padding: 1rem 1.25rem;
-    background: rgba(52,211,153,0.05);
-    border: 1px solid rgba(52,211,153,0.2);
+
+  /* ── Errors ── */
+  .errors-box {
+    margin-top: 1rem;
+    padding: 0.85rem 1rem;
+    background: rgba(248,113,113,0.07);
+    border: 1px solid rgba(248,113,113,0.22);
     border-radius: 8px;
+    font-size: 0.8rem; color: #fca5a5;
   }
-  .curiosity-profile .profile-label {
-    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
-    color: #34d399; font-weight: 600; margin-bottom: 0.6rem;
+  .errors-box h4 { margin-bottom: 0.4rem; font-weight: 600; }
+  .errors-box li { margin-left: 1rem; margin-top: 0.25rem; line-height: 1.5; }
+
+  footer {
+    margin-top: 3rem; text-align: center;
+    font-size: 0.74rem; color: var(--muted2);
+    letter-spacing: 0.02em;
   }
-  .topic-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
-  .topic-chip {
-    display: inline-block; font-size: 0.75rem;
-    padding: 0.25em 0.7em; border-radius: 12px;
-    background: rgba(99,102,241,0.15); color: #a5b4fc;
-    border: 1px solid rgba(99,102,241,0.3);
-  }
-  .regen-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.5rem; }
-  .regen-bar .regen-link {
-    font-size: 0.78rem; color: var(--muted);
-    font-family: monospace;
-  }
-  .btn-regen {
-    padding: 0.4rem 1rem;
-    background: rgba(52,211,153,0.15);
-    border: 1px solid rgba(52,211,153,0.4);
-    border-radius: 6px;
-    color: #34d399;
-    font-size: 0.82rem; cursor: pointer;
-    transition: all 0.2s;
-  }
-  .btn-regen:hover:not(:disabled) {
-    background: rgba(52,211,153,0.25);
-    border-color: #34d399;
-  }
-  .btn-regen:disabled { opacity: 0.5; cursor: not-allowed; }
-  .privacy-note {
-    font-size: 0.78rem; color: var(--muted);
-    background: rgba(255,255,255,0.03);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-    margin-bottom: 1.5rem;
-    line-height: 1.6;
-  }
-  .privacy-note strong { color: var(--text); }
-  footer { margin-top: 3rem; text-align: center; font-size: 0.78rem; color: var(--muted); }
 </style>
 </head>
 <body>
 <div class="container">
   <header>
-    <h1>Tr<span>a</span>ce</h1>
-    <p>Upload your browsing history. Get a newsletter that reflects <em>your</em> curiosity.</p>
+    <div class="logo">Tr<span>a</span>ce</div>
+    <p class="tagline">Upload your history. Get a newsletter that reflects <em>your</em> curiosity.</p>
   </header>
 
   <div class="privacy-note">
-    <strong>Your data stays yours.</strong>
-    You export your own history file locally from Google or ChatGPT — you never hand over
-    any password, OAuth token, or account access. The file is sent only to this server,
-    used once to generate your newsletter, then <strong>deleted immediately</strong>.
-    Nothing is stored, logged, or shared beyond the newsletter itself.
+    <strong>Your data stays local.</strong>
+    You export your own files from Google / ChatGPT — no passwords or OAuth tokens required.
+    Files are sent only to this server, used once to generate your newsletter, then
+    <strong>deleted immediately</strong>. Nothing is stored or shared.
   </div>
 
   <div class="card">
-    <div class="tabs">
-      <div class="tab active" onclick="switchTab('google')">Chrome History</div>
-      <div class="tab" onclick="switchTab('youtube')">YouTube History</div>
-      <div class="tab" onclick="switchTab('chatgpt')">ChatGPT Export</div>
-    </div>
-    <p style="font-size:0.78rem;color:var(--muted);margin-bottom:1rem">
-      Upload one or more — the more signals, the more accurate your curiosity profile.
-    </p>
+    <div class="card-title">Signal Sources · Upload one or more</div>
 
-    <div id="tab-google" class="tab-content active">
-      <div class="instructions">
-        <ol>
-          <li>Go to <strong>takeout.google.com</strong></li>
-          <li>Deselect all → select only <code>Chrome</code></li>
-          <li>Export → Download → extract the ZIP</li>
-          <li>Open the ZIP → navigate to <code>Takeout/Chrome/</code></li>
-          <li>Upload <code>BrowserHistory.json</code> below</li>
-        </ol>
+    <div class="source-cards">
+
+      <!-- Chrome history -->
+      <div class="source-card" id="card-google">
+        <div class="source-card-header" onclick="toggleCard('google')">
+          <div class="source-card-left">
+            <div class="source-icon">🌐</div>
+            <div>
+              <div class="source-name">Chrome / Browser History</div>
+              <div class="source-desc">BrowserHistory.json or Takeout ZIP · multiple files supported</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.6rem">
+            <span class="source-status" id="status-google">Optional</span>
+            <span class="expand-toggle">▼</span>
+          </div>
+        </div>
+        <div class="source-body" id="body-google">
+          <div class="how-to">
+            <ol>
+              <li>Go to <strong>takeout.google.com</strong></li>
+              <li>Deselect all → select only <code>Chrome</code></li>
+              <li>Export → Download (you can export multiple date ranges)</li>
+              <li>Upload the <strong>ZIP directly</strong>, or extract and upload <code>BrowserHistory.json</code></li>
+              <li>Select <strong>multiple files at once</strong> if you have several exports</li>
+            </ol>
+          </div>
+          <label class="upload-zone" id="drop-google">
+            <input type="file" id="file-google" accept=".json,.zip" multiple onchange="fileChosen('google')">
+            <div class="upload-zone-label">Drop BrowserHistory.json or Takeout ZIP(s) here</div>
+            <div class="upload-zone-sub">or click to browse · .json and .zip · multiple files OK</div>
+            <div class="upload-zone-chosen" id="chosen-google"></div>
+          </label>
+        </div>
       </div>
-      <label class="upload-area" id="drop-google">
-        <input type="file" id="file-google" accept=".json" onchange="fileChosen('google')">
-        <div class="upload-icon">📂</div>
-        <strong>Drop BrowserHistory.json here</strong>
-        <p>or click to browse</p>
-        <div class="file-chosen" id="chosen-google"></div>
-      </label>
-    </div>
 
-    <div id="tab-youtube" class="tab-content">
-      <div class="instructions">
-        <ol>
-          <li>Go to <strong>takeout.google.com</strong></li>
-          <li>Deselect all → select <code>YouTube and YouTube Music</code></li>
-          <li>Export → Download → extract the ZIP</li>
-          <li>Find <code>Takeout/YouTube and YouTube Music/history/watch-history.json</code></li>
-          <li>Upload it below</li>
-        </ol>
-        <p style="margin-top:0.5rem">
-          Rewatched videos signal deeper interest — if you opened the same lecture 3+ times,
-          Trace flags it as a curiosity you're stuck on and prioritises related content.
-        </p>
+      <!-- YouTube history -->
+      <div class="source-card" id="card-youtube">
+        <div class="source-card-header" onclick="toggleCard('youtube')">
+          <div class="source-card-left">
+            <div class="source-icon">▶</div>
+            <div>
+              <div class="source-name">YouTube Watch History</div>
+              <div class="source-desc">watch-history.json from Google Takeout</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.6rem">
+            <span class="source-status" id="status-youtube">Optional</span>
+            <span class="expand-toggle">▼</span>
+          </div>
+        </div>
+        <div class="source-body" id="body-youtube">
+          <div class="how-to">
+            <ol>
+              <li>Go to <strong>takeout.google.com</strong></li>
+              <li>Deselect all → select <code>YouTube and YouTube Music</code></li>
+              <li>Export → Download → extract the ZIP</li>
+              <li>Find <code>Takeout/YouTube and YouTube Music/history/watch-history.json</code></li>
+            </ol>
+            <p style="margin-top:0.5rem;font-size:0.79rem">
+              Re-watched lectures count as curiosity debt signals — they show interests you keep returning to.
+            </p>
+          </div>
+          <label class="upload-zone" id="drop-youtube">
+            <input type="file" id="file-youtube" accept=".json" onchange="fileChosen('youtube')">
+            <div class="upload-zone-label">Drop watch-history.json here</div>
+            <div class="upload-zone-sub">or click to browse · .json only</div>
+            <div class="upload-zone-chosen" id="chosen-youtube"></div>
+          </label>
+        </div>
       </div>
-      <label class="upload-area" id="drop-youtube">
-        <input type="file" id="file-youtube" accept=".json" onchange="fileChosen('youtube')">
-        <div class="upload-icon">▶️</div>
-        <strong>Drop watch-history.json here</strong>
-        <p>or click to browse</p>
-        <div class="file-chosen" id="chosen-youtube"></div>
-      </label>
-    </div>
 
-    <div id="tab-chatgpt" class="tab-content">
-      <div class="instructions">
-        <ol>
-          <li>Go to ChatGPT → <strong>Settings → Data Controls → Export Data</strong></li>
-          <li>Wait for the email → Download → extract the ZIP</li>
-          <li>Find <code>conversations.json</code> and upload it below</li>
-        </ol>
+      <!-- ChatGPT export -->
+      <div class="source-card" id="card-chatgpt">
+        <div class="source-card-header" onclick="toggleCard('chatgpt')">
+          <div class="source-card-left">
+            <div class="source-icon">💬</div>
+            <div>
+              <div class="source-name">ChatGPT Export</div>
+              <div class="source-desc">conversations.json — highest-signal source</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.6rem">
+            <span class="source-status" id="status-chatgpt">Optional</span>
+            <span class="expand-toggle">▼</span>
+          </div>
+        </div>
+        <div class="source-body" id="body-chatgpt">
+          <div class="how-to">
+            <ol>
+              <li>Open ChatGPT → click your avatar → <strong>Settings</strong></li>
+              <li>Go to <strong>Data Controls → Export Data</strong> → click Export</li>
+              <li>Wait for the confirmation email → click Download</li>
+              <li>Extract the ZIP → upload <code>conversations.json</code></li>
+            </ol>
+            <p style="margin-top:0.5rem;font-size:0.79rem">
+              ChatGPT conversations carry 1.5× weight — they represent your most explicit intellectual intent.
+            </p>
+          </div>
+          <label class="upload-zone" id="drop-chatgpt">
+            <input type="file" id="file-chatgpt" accept=".json" onchange="fileChosen('chatgpt')">
+            <div class="upload-zone-label">Drop conversations.json here</div>
+            <div class="upload-zone-sub">or click to browse · .json only</div>
+            <div class="upload-zone-chosen" id="chosen-chatgpt"></div>
+          </label>
+        </div>
       </div>
-      <label class="upload-area" id="drop-chatgpt">
-        <input type="file" id="file-chatgpt" accept=".json" onchange="fileChosen('chatgpt')">
-        <div class="upload-icon">💬</div>
-        <strong>Drop conversations.json here</strong>
-        <p>or click to browse</p>
-        <div class="file-chosen" id="chosen-chatgpt"></div>
-      </label>
+
+    </div><!-- /.source-cards -->
+
+    <!-- Signal strength bar -->
+    <div class="signal-bar-row">
+      <span class="signal-bar-label">Signal strength</span>
+      <div class="signal-bar-track"><div class="signal-bar-fill" id="sig-fill"></div></div>
+      <span class="signal-bar-count" id="sig-count">0 / 3 sources</span>
     </div>
 
-    <div style="margin-top:1.5rem">
+    <div class="gen-section">
       <button class="primary" id="gen-btn" onclick="generate()">Generate My Newsletter</button>
-      <div class="spinner" id="spinner"></div>
-      <div class="status" id="status"></div>
-      <p style="font-size:0.75rem;color:var(--muted);text-align:center;margin-top:0.75rem">
-        Generation takes <strong style="color:var(--text)">60–120 seconds</strong> — Claude reads your entire history and writes a bespoke newsletter. Please don't close this tab.
-      </p>
+      <div class="loading-wrap" id="loading-wrap">
+        <div class="dots">
+          <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        </div>
+        <div class="stage-msg" id="stage-msg"></div>
+      </div>
+      <p class="timing-hint">Takes <strong style="color:var(--muted)">60–120 seconds</strong> — Claude reads your entire history and writes a personalised newsletter. Keep this tab open.</p>
     </div>
-  </div>
+  </div><!-- /.card -->
 
   <div id="result" class="card">
-    <div class="newsletter-header">
-      <div class="label">Your Personalized Newsletter</div>
-      <h2 id="subject"></h2>
-      <div class="meta" id="meta"></div>
+    <div class="result-header">
+      <div class="result-eyebrow">Your Personalised Newsletter</div>
+      <div class="result-subject" id="subject"></div>
+      <div class="result-meta" id="meta"></div>
     </div>
     <div id="curiosity-profile"></div>
-    <div class="download-bar">
-      <button onclick="downloadHtml()">⬇ Download HTML</button>
-      <button onclick="downloadText()">⬇ Download Plain Text</button>
+    <div class="action-row" id="action-row">
+      <button class="btn-action" onclick="downloadHtml()">⬇ HTML</button>
+      <button class="btn-action" onclick="downloadText()">⬇ Plain Text</button>
+      <div id="share-link-container"></div>
     </div>
-    <div id="share-link-container"></div>
     <div id="toc"></div>
     <div id="sections"></div>
     <div id="errors-container"></div>
@@ -756,26 +908,52 @@ _FRONTEND_HTML = """<!DOCTYPE html>
 <footer>Trace · Hackathon Build · Powered by Claude &amp; Anthropic</footer>
 
 <script>
-let activeTab = 'google';
 let newsletterData = null;
+let fileCount = 0;
 
-function switchTab(tab) {
-  activeTab = tab;
-  const tabs = ['google','youtube','chatgpt'];
-  document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', tabs[i] === tab);
-  });
-  tabs.forEach(id => {
-    document.getElementById('tab-' + id).classList.toggle('active', id === tab);
-  });
+// ── Card expand/collapse ──────────────────────────────────────────────────────
+function toggleCard(type) {
+  const card = document.getElementById('card-' + type);
+  card.classList.toggle('expanded');
 }
 
+// Auto-expand the first card on load
+document.getElementById('card-google').classList.add('expanded');
+
+// ── File chosen ───────────────────────────────────────────────────────────────
 function fileChosen(type) {
-  const f = document.getElementById('file-' + type).files[0];
-  document.getElementById('chosen-' + type).textContent = f ? '✓ ' + f.name : '';
+  const input = document.getElementById('file-' + type);
+  const files = Array.from(input.files);
+  const chosenEl = document.getElementById('chosen-' + type);
+  const statusEl = document.getElementById('status-' + type);
+  const card = document.getElementById('card-' + type);
+  if (files.length > 0) {
+    // For google (multi-file), list all names; for others just the one
+    const label = files.length === 1
+      ? '✓ ' + files[0].name
+      : '✓ ' + files.length + ' files: ' + files.map(f => f.name).join(', ');
+    chosenEl.textContent = label;
+    statusEl.textContent = files.length > 1 ? '✓ ' + files.length + ' files' : '✓ Ready';
+    statusEl.className = 'source-status chosen';
+    card.classList.add('has-file');
+  } else {
+    chosenEl.textContent = '';
+    statusEl.textContent = 'Optional';
+    statusEl.className = 'source-status';
+    card.classList.remove('has-file');
+  }
+  updateSignalBar();
 }
 
-// Drag-and-drop
+function updateSignalBar() {
+  const types = ['google','youtube','chatgpt'];
+  const count = types.filter(t => document.getElementById('file-' + t).files.length > 0).length;
+  fileCount = count;
+  document.getElementById('sig-fill').style.width = (count / 3 * 100) + '%';
+  document.getElementById('sig-count').textContent = count + ' / 3 sources';
+}
+
+// ── Drag-and-drop ─────────────────────────────────────────────────────────────
 ['google','youtube','chatgpt'].forEach(t => {
   const el = document.getElementById('drop-' + t);
   el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
@@ -784,24 +962,26 @@ function fileChosen(type) {
     e.preventDefault(); el.classList.remove('drag-over');
     const dt = e.dataTransfer;
     if (dt.files.length) {
-      document.getElementById('file-' + t).files = dt.files;
+      // For google, allow multiple dropped files; for others take the first
+      if (t === 'google') {
+        // DataTransfer.files is read-only — we can't directly assign multiple
+        // dropped files to an input. Use a workaround via DataTransfer API.
+        try {
+          const dta = new DataTransfer();
+          Array.from(dt.files).forEach(f => dta.items.add(f));
+          document.getElementById('file-' + t).files = dta.files;
+        } catch {
+          document.getElementById('file-' + t).files = dt.files;
+        }
+      } else {
+        document.getElementById('file-' + t).files = dt.files;
+      }
       fileChosen(t);
     }
   });
 });
 
-function setStatus(msg, isError) {
-  const s = document.getElementById('status');
-  s.textContent = msg;
-  s.className = 'status' + (isError ? ' error' : '');
-  s.style.display = msg ? 'block' : 'none';
-}
-
-function setLoading(loading) {
-  document.getElementById('gen-btn').style.display = loading ? 'none' : 'block';
-  document.getElementById('spinner').style.display = loading ? 'block' : 'none';
-}
-
+// ── Stage ticker ──────────────────────────────────────────────────────────────
 const STAGE_MSGS = [
   'Reading your history and signals…',
   'Clustering curiosity topics with Claude — this takes 20–40s…',
@@ -811,34 +991,38 @@ const STAGE_MSGS = [
   'Still working — large histories can take up to 2 minutes…',
   'Almost there — finalising your newsletter…',
 ];
-// Delay per stage in ms — early stages are faster, later ones need reassurance
 const STAGE_DELAYS = [3000, 18000, 15000, 5000, 15000, 20000, 20000];
 let stageIdx = 0;
 let stageTimer;
 
 function tickStage() {
   if (stageIdx < STAGE_MSGS.length) {
-    setStatus(STAGE_MSGS[stageIdx]);
-    const delay = STAGE_DELAYS[stageIdx] || 15000;
+    document.getElementById('stage-msg').textContent = STAGE_MSGS[stageIdx];
+    stageTimer = setTimeout(tickStage, STAGE_DELAYS[stageIdx] || 15000);
     stageIdx++;
-    stageTimer = setTimeout(tickStage, delay);
   } else {
-    // Loop the last reassurance message so UI never looks frozen
-    setStatus('Still processing — complex histories can take a few minutes…');
+    document.getElementById('stage-msg').textContent = 'Still processing — complex histories can take a few minutes…';
     stageTimer = setTimeout(tickStage, 20000);
   }
 }
 
 function stopStages() { clearTimeout(stageTimer); stageIdx = 0; }
 
-function badgeClass(type) {
-  return 'section-badge badge-' + (type || 'weekly_topics');
+function setLoading(loading) {
+  document.getElementById('gen-btn').style.display = loading ? 'none' : 'block';
+  document.getElementById('loading-wrap').style.display = loading ? 'flex' : 'none';
+  if (!loading) document.getElementById('stage-msg').className = 'stage-msg';
 }
 
-function badgeLabel(type) {
-  return { weekly_topics: 'This Week', curiosity_debt: 'Curiosity Debt', rabbit_hole: 'Rabbit Hole' }[type] || type;
+function setError(msg) {
+  const el = document.getElementById('stage-msg');
+  el.textContent = msg;
+  el.className = 'stage-msg error';
+  document.getElementById('loading-wrap').style.display = 'flex';
+  document.getElementById('gen-btn').style.display = 'block';
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function esc(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -858,6 +1042,17 @@ function sourceBadge(url) {
   if (url.includes('arxiv.org')) return '<span class="src-badge src-arxiv">arXiv</span>';
   if (url.includes('ycombinator.com')) return '<span class="src-badge src-hn">HN</span>';
   return '<span class="src-badge src-web">Web</span>';
+}
+
+function badgeClass(type) { return 'section-badge badge-' + (type || 'weekly_topics'); }
+
+function badgeLabel(type) {
+  return { weekly_topics: 'This Week', curiosity_debt: 'Curiosity Debt', rabbit_hole: 'Rabbit Hole' }[type] || type;
+}
+
+// Split content on blank lines into separate <p> tags
+function fmtContent(text) {
+  return String(text).split(/\n\n+/).map(p => `<p>${esc(p.trim())}</p>`).join('');
 }
 
 function downloadBlob(content, filename, mime) {
@@ -881,6 +1076,7 @@ function downloadText() {
   downloadBlob(newsletterData.plain_text, `trace-${subj}.txt`, 'text/plain');
 }
 
+// ── Regenerate ────────────────────────────────────────────────────────────────
 async function regenerate() {
   if (!newsletterData || !newsletterData.profile_id) return;
   const btn = document.getElementById('regen-btn');
@@ -890,9 +1086,7 @@ async function regenerate() {
   stageIdx = 0;
   tickStage();
   try {
-    const r = await fetch('/newsletter/regenerate/' + encodeURIComponent(newsletterData.profile_id), {
-      method: 'POST',
-    });
+    const r = await fetch('/newsletter/regenerate/' + encodeURIComponent(newsletterData.profile_id), { method: 'POST' });
     if (!r.ok) {
       let msg = 'Regeneration failed';
       try { const e = await r.json(); msg = e.detail || msg; } catch { msg = await r.text().catch(() => msg); }
@@ -901,17 +1095,17 @@ async function regenerate() {
     const data = await r.json();
     stopStages();
     setLoading(false);
-    setStatus('');
     renderNewsletter(data);
   } catch (err) {
     stopStages();
     setLoading(false);
-    setStatus('Error: ' + err.message, true);
+    setError('Error: ' + err.message);
     if (btn) btn.disabled = false;
     document.getElementById('result').style.display = 'block';
   }
 }
 
+// ── Render newsletter ─────────────────────────────────────────────────────────
 function renderNewsletter(data) {
   newsletterData = data;
   document.getElementById('subject').textContent = data.subject_line;
@@ -919,19 +1113,15 @@ function renderNewsletter(data) {
   const forStr = data.generated_for ? ' · for ' + data.generated_for : '';
   document.getElementById('meta').textContent = dt.toLocaleString() + forStr;
 
-  // Curiosity profile: show inferred topics + daily regen link
+  // Curiosity profile chips
   const profileEl = document.getElementById('curiosity-profile');
   if (data.topic_names && data.topic_names.length > 0) {
-    // topic_scores are already normalised 0–1 relative to the strongest topic.
-    // Use them to modulate chip visual intensity so top interests stand out.
     const scores = data.topic_scores || [];
     const chips = data.topic_names.map((t, i) => {
       const s = scores[i] != null ? scores[i] : 0;
-      // Background alpha: 0.12 (weakest) → 0.45 (strongest)
-      // Border alpha:     0.20 (weakest) → 0.75 (strongest)
       const bg  = (0.12 + 0.33 * s).toFixed(2);
       const bdr = (0.20 + 0.55 * s).toFixed(2);
-      const tip = scores[i] != null ? ` title="Relative curiosity strength: ${Math.round(s*100)}%"` : '';
+      const tip = scores[i] != null ? ` title="Curiosity strength: ${Math.round(s*100)}%"` : '';
       return `<span class="topic-chip"${tip} style="background:rgba(99,102,241,${bg});border-color:rgba(99,102,241,${bdr})">${esc(t)}</span>`;
     }).join('');
     const regenHtml = data.profile_id ? `
@@ -940,7 +1130,7 @@ function renderNewsletter(data) {
         <span class="regen-link">Bookmark: <a href="/newsletter/regenerate/${esc(data.profile_id)}" onclick="return false;">/regenerate/${esc(data.profile_id.substring(0,8))}…</a></span>
       </div>` : '';
     profileEl.innerHTML = `<div class="curiosity-profile">
-      <div class="profile-label">Your Curiosity Profile · ${data.topic_names.length} topic${data.topic_names.length !== 1 ? 's' : ''} inferred</div>
+      <div class="profile-label">Curiosity Profile · ${data.topic_names.length} topic${data.topic_names.length !== 1 ? 's' : ''} inferred</div>
       <div class="topic-chips">${chips}</div>
       ${regenHtml}
     </div>`;
@@ -950,11 +1140,9 @@ function renderNewsletter(data) {
 
   // Share link
   const shareCont = document.getElementById('share-link-container');
-  if (data.id) {
-    shareCont.innerHTML = `<div class="share-link">Permalink: <a href="/newsletter/${esc(data.id)}" target="_blank">/newsletter/${esc(data.id)}</a></div>`;
-  } else {
-    shareCont.innerHTML = '';
-  }
+  shareCont.innerHTML = data.id
+    ? `<span class="share-link">Permalink: <a href="/newsletter/${esc(data.id)}" target="_blank">/newsletter/${esc(data.id)}</a></span>`
+    : '';
 
   // Table of contents
   const tocEl = document.getElementById('toc');
@@ -967,24 +1155,23 @@ function renderNewsletter(data) {
     tocEl.innerHTML = '';
   }
 
+  // Sections
   const secEl = document.getElementById('sections');
   secEl.innerHTML = '';
   data.sections.forEach((s, i) => {
     const div = document.createElement('div');
     div.className = 'section';
     div.id = `section-${i}`;
-    const urls = s.source_urls.map(u => {
+    const urls = (s.source_urls || []).map(u => {
       const href = esc(safeHref(u));
-      const badge = sourceBadge(u);
-      const display = esc(u);
-      return `<a href="${href}" target="_blank" rel="noopener noreferrer">${badge}<span class="link-text">${display}</span></a>`;
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer">${sourceBadge(u)}<span class="link-text">${esc(u)}</span></a>`;
     }).join('');
     div.innerHTML = `
       <div class="section-meta">
         <span class="${badgeClass(s.section_type)}">${esc(badgeLabel(s.section_type))}</span>
       </div>
       <h3>${esc(s.title)}</h3>
-      <p>${esc(s.content)}</p>
+      <div class="content-body">${fmtContent(s.content)}</div>
       ${urls ? '<div class="sources">' + urls + '</div>' : ''}
       <details class="audit">
         <summary>Why this section?</summary>
@@ -993,25 +1180,29 @@ function renderNewsletter(data) {
     secEl.appendChild(div);
   });
 
+  // Errors
   const errBox = document.getElementById('errors-container');
   errBox.innerHTML = '';
   if (data.errors && data.errors.length) {
-    errBox.innerHTML = `<div class="errors-box"><h4>Non-fatal pipeline warnings (${data.errors.length})</h4><ul>${
+    errBox.innerHTML = `<div class="errors-box"><h4>Non-fatal warnings (${data.errors.length})</h4><ul>${
       data.errors.map(e => '<li>' + esc(e) + '</li>').join('')
     }</ul></div>`;
   }
 
-  document.getElementById('result').style.display = 'block';
-  document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
+  const resultEl = document.getElementById('result');
+  resultEl.style.display = 'block';
+  resultEl.scrollIntoView({ behavior: 'smooth' });
 }
 
+// ── Generate ──────────────────────────────────────────────────────────────────
 async function generate() {
-  const fileGoogle  = document.getElementById('file-google').files[0];
-  const fileYoutube = document.getElementById('file-youtube').files[0];
-  const fileChatgpt = document.getElementById('file-chatgpt').files[0];
+  const googleFiles = Array.from(document.getElementById('file-google').files);
+  const youtubeFiles = Array.from(document.getElementById('file-youtube').files);
+  const chatgptFiles = Array.from(document.getElementById('file-chatgpt').files);
 
-  if (!fileGoogle && !fileYoutube && !fileChatgpt) {
-    setStatus('Please upload at least one file first.', true);
+  if (googleFiles.length === 0 && youtubeFiles.length === 0 && chatgptFiles.length === 0) {
+    setError('Please upload at least one file first.');
+    document.getElementById('loading-wrap').style.display = 'flex';
     return;
   }
 
@@ -1021,28 +1212,30 @@ async function generate() {
   tickStage();
 
   try {
-    let historyUploadId = null, youtubeUploadId = null, chatgptUploadId = null;
-
-    if (fileGoogle) {
+    // Upload all Chrome/Google history files (may be multiple ZIPs or JSONs)
+    const historyUploadIds = [];
+    for (const f of googleFiles) {
       const fd = new FormData();
-      fd.append('file', fileGoogle);
+      fd.append('file', f);
       const r = await fetch('/upload', { method: 'POST', body: fd });
-      if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Upload failed'); }
-      historyUploadId = (await r.json()).upload_id;
+      if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Upload failed: ' + f.name); }
+      historyUploadIds.push((await r.json()).upload_id);
     }
 
-    if (fileYoutube) {
+    let youtubeUploadId = null;
+    if (youtubeFiles[0]) {
       const fd = new FormData();
-      fd.append('file', fileYoutube);
+      fd.append('file', youtubeFiles[0]);
       fd.append('file_type', 'youtube');
       const r = await fetch('/upload', { method: 'POST', body: fd });
       if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Upload failed'); }
       youtubeUploadId = (await r.json()).upload_id;
     }
 
-    if (fileChatgpt) {
+    let chatgptUploadId = null;
+    if (chatgptFiles[0]) {
       const fd = new FormData();
-      fd.append('file', fileChatgpt);
+      fd.append('file', chatgptFiles[0]);
       fd.append('file_type', 'chatgpt');
       const r = await fetch('/upload', { method: 'POST', body: fd });
       if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Upload failed'); }
@@ -1050,7 +1243,7 @@ async function generate() {
     }
 
     const body = {};
-    if (historyUploadId) body.history_upload_id = historyUploadId;
+    if (historyUploadIds.length > 0) body.history_upload_ids = historyUploadIds;
     if (youtubeUploadId) body.youtube_upload_id = youtubeUploadId;
     if (chatgptUploadId) body.chatgpt_upload_id = chatgptUploadId;
 
@@ -1065,15 +1258,13 @@ async function generate() {
       throw new Error(msg);
     }
     const data = await r2.json();
-
     stopStages();
     setLoading(false);
-    setStatus('');
     renderNewsletter(data);
   } catch (err) {
     stopStages();
     setLoading(false);
-    setStatus('Error: ' + err.message, true);
+    setError('Error: ' + err.message);
   }
 }
 </script>
@@ -1114,12 +1305,40 @@ async def upload_file(
 
     content = await file.read()
     size = len(content)
-    _MAX = 100 * 1024 * 1024
+    _MAX = 200 * 1024 * 1024  # 200 MB to accommodate ZIP archives
     if size > _MAX:
         raise HTTPException(
             status_code=413,
-            detail=f"File too large ({size / 1024 / 1024:.1f} MB). Maximum is 100 MB.",
+            detail=f"File too large ({size / 1024 / 1024:.1f} MB). Maximum is 200 MB.",
         )
+
+    fname = file.filename or "upload.json"
+
+    # Extract BrowserHistory.json from a Google Takeout ZIP archive.
+    # ZIP magic bytes: PK\x03\x04. We check bytes rather than extension
+    # because users sometimes rename files, and takeout ZIPs are always PK.
+    if content[:4] == b"PK\x03\x04" or fname.lower().endswith(".zip"):
+        try:
+            with zipfile.ZipFile(io.BytesIO(content)) as zf:
+                candidates = [n for n in zf.namelist() if n.lower().endswith("browserhistory.json")]
+                if not candidates:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            "ZIP does not contain BrowserHistory.json. "
+                            "Make sure you exported Chrome data from Google Takeout "
+                            "and look for Takeout/Chrome/BrowserHistory.json inside the ZIP."
+                        ),
+                    )
+                # Prefer the canonical Takeout/Chrome/ path; fall back to first match
+                canonical = next(
+                    (n for n in candidates if "chrome" in n.lower()), candidates[0]
+                )
+                content = zf.read(canonical)
+                size = len(content)
+                _log.info("Extracted %s from ZIP (%d bytes)", canonical, size)
+        except zipfile.BadZipFile:
+            raise HTTPException(status_code=400, detail="File is not a valid ZIP or JSON")
 
     stripped = content.strip()
     if not stripped.startswith(b"{") and not stripped.startswith(b"["):
@@ -1127,13 +1346,11 @@ async def upload_file(
 
     # Basic JSON depth/structure guard — reject obviously malformed payloads
     try:
-        import json as _json
         _json.loads(content)
     except (ValueError, MemoryError):
         raise HTTPException(status_code=400, detail="File is not valid JSON")
 
     upload_id = str(uuid.uuid4())
-    fname = file.filename or "upload.json"
 
     # Detect file type from filename when set to auto
     detected_type = file_type
@@ -1163,9 +1380,38 @@ async def upload_file(
 
 
 class FromUploadRequest(BaseModel):
+    # Single history file (legacy / convenience)
     history_upload_id: str | None = None
+    # Multiple Chrome history files — merged before pipeline runs
+    history_upload_ids: list[str] = []
     chatgpt_upload_id: str | None = None
     youtube_upload_id: str | None = None
+
+
+def _merge_browser_history(paths: list[Path], upload_dir: Path) -> Path:
+    """
+    Merge multiple BrowserHistory.json files into a single file.
+    Each file's 'Browser History' array is concatenated; duplicates are left
+    for the collector's deduplication logic to handle (it already dedupes by URL).
+    Returns path to the temporary merged file.
+    """
+    merged_entries: list[_json.Any] = []
+    for p in paths:
+        try:
+            data = _json.loads(p.read_text(encoding="utf-8"))
+            entries = data.get("Browser History", [])
+            if isinstance(entries, list):
+                merged_entries.extend(entries)
+                _log.info("Merged %d entries from %s", len(entries), p.name)
+        except Exception as exc:
+            _log.warning("Could not read history file %s for merge: %s", p.name, exc)
+    merge_id = str(uuid.uuid4())
+    merged_path = upload_dir / f"history_{merge_id}.json"
+    merged_path.write_text(
+        _json.dumps({"Browser History": merged_entries}), encoding="utf-8"
+    )
+    _log.info("Merged %d total history entries → %s", len(merged_entries), merged_path.name)
+    return merged_path
 
 
 @app.post("/newsletter/from-upload", response_model=GenerateResponse)
@@ -1178,27 +1424,45 @@ async def generate_from_upload(
     This is the primary personalization endpoint — results are specific to
     the individual's actual browsing/conversation history.
     """
-    # Validate inputs before touching settings (settings may be unavailable in some envs)
-    if not body.history_upload_id and not body.chatgpt_upload_id and not body.youtube_upload_id:
+    # Collect all history IDs — merge history_upload_id (legacy) + history_upload_ids (multi)
+    all_history_ids: list[str] = []
+    if body.history_upload_id:
+        all_history_ids.append(body.history_upload_id)
+    all_history_ids.extend(body.history_upload_ids)
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    unique_history_ids = [i for i in all_history_ids if not (i in seen or seen.add(i))]  # type: ignore[func-returns-value]
+
+    if not unique_history_ids and not body.chatgpt_upload_id and not body.youtube_upload_id:
         raise HTTPException(status_code=400, detail="Provide at least one upload ID")
 
     # Reject non-UUID upload IDs — prevents path traversal via "../" in the ID
-    for uid in [body.history_upload_id, body.chatgpt_upload_id, body.youtube_upload_id]:
+    all_ids = unique_history_ids + [body.chatgpt_upload_id, body.youtube_upload_id]
+    for uid in all_ids:
         if uid is not None and not _UUID_RE.match(uid):
             raise HTTPException(status_code=400, detail=f"Invalid upload ID format: {uid!r}")
 
     settings = get_settings()
     upload_dir = settings.upload_dir
 
+    # Resolve history paths and merge if multiple were uploaded
+    history_paths: list[Path] = []
+    for uid in unique_history_ids:
+        p = upload_dir / f"history_{uid}.json"
+        if not p.exists():
+            raise HTTPException(status_code=404, detail=f"Upload {uid} not found")
+        history_paths.append(p)
+
     history_path: Path | None = None
+    merged_path: Path | None = None  # only set when we created a temp merge file
+    if len(history_paths) == 1:
+        history_path = history_paths[0]
+    elif len(history_paths) > 1:
+        merged_path = _merge_browser_history(history_paths, upload_dir)
+        history_path = merged_path
+
     chatgpt_path: Path | None = None
     youtube_path: Path | None = None
-
-    if body.history_upload_id:
-        p = upload_dir / f"history_{body.history_upload_id}.json"
-        if not p.exists():
-            raise HTTPException(status_code=404, detail=f"Upload {body.history_upload_id} not found")
-        history_path = p
 
     if body.chatgpt_upload_id:
         p = upload_dir / f"chatgpt_{body.chatgpt_upload_id}.json"
@@ -1237,7 +1501,10 @@ async def generate_from_upload(
         # Delete uploaded files immediately after pipeline use — they contain
         # sensitive personal data (browsing/conversation history) and must not
         # persist on the server longer than necessary.
-        for p in [history_path, chatgpt_path, youtube_path]:
+        files_to_delete = list(history_paths) + [chatgpt_path, youtube_path]
+        if merged_path:
+            files_to_delete.append(merged_path)
+        for p in files_to_delete:
             if p and p.exists():
                 try:
                     p.unlink()

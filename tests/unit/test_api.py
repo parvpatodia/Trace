@@ -431,7 +431,7 @@ class TestUploadEndpoint:
 
         mock_settings = MagicMock()
         mock_settings.upload_dir = tmp_path / "uploads"
-        big_content = b'{"Browser History":[]}' + b"x" * (101 * 1024 * 1024)
+        big_content = b'{"Browser History":[]}' + b"x" * (201 * 1024 * 1024)
 
         with patch("trace.delivery.api.get_settings", return_value=mock_settings):
             with TestClient(app, raise_server_exceptions=False) as client:
