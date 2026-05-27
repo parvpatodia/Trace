@@ -183,6 +183,16 @@ class ApifyMCPScraper(ArticleScraper):
                 resp.raise_for_status()
                 items = resp.json()
                 if isinstance(items, list):
+                    # Archive raw scrape results to Tigris Data for provenance.
+                    try:
+                        import uuid as _uuid
+                        from trace.storage.tigris import get_tigris_store
+                        tigris = get_tigris_store()
+                        if tigris.enabled:
+                            run_id = str(_uuid.uuid4())[:8]
+                            tigris.store_apify_artifact(topic.name, run_id, items[:limit])
+                    except Exception:
+                        pass
                     return self._parse_items(items, topic, limit)
         except Exception as exc:
             _log.warning("Apify REST fallback also failed for %r: %s", topic.name, exc)

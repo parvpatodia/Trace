@@ -157,6 +157,15 @@ class RedisCuriosityStore:
             _log.warning("Redis profile_meta failed: %s", exc)
             return {}
 
+    async def health(self) -> dict[str, Any]:
+        """Return connection health for the health probe endpoints."""
+        if not self.enabled:
+            return {"status": "disabled", "enabled": False}
+        client = await self._ensure_client()
+        if client is None:
+            return {"status": "unavailable", "enabled": True}
+        return {"status": "ok", "enabled": True}
+
     async def close(self) -> None:
         if self._client is not None:
             try:

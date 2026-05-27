@@ -522,6 +522,9 @@ async def health() -> dict[str, Any]:
     Returns capability flags for each sponsor tool so judges can see all
     integrations are wired in a single call.
     """
+    from trace.agent.kalibr_guard import get_event_log
+    from trace.storage.tigris import get_tigris_store
+
     redis_ok = False
     if _redis_store.enabled:
         try:
@@ -529,6 +532,10 @@ async def health() -> dict[str, Any]:
             redis_ok = client is not None
         except Exception:
             pass
+
+    tigris = get_tigris_store()
+    tigris_status = tigris.health()
+    kalibr_events = get_event_log()
 
     return {
         "status": "ok",
@@ -554,6 +561,16 @@ async def health() -> dict[str, Any]:
                 "active": redis_ok,
                 "enabled": _redis_store.enabled,
                 "note": "Sub-50ms curiosity graph reads via ZSET index",
+            },
+            "tigris_data": {
+                **tigris_status,
+                "note": "S3-compatible globally-distributed storage for uploads + artifacts",
+            },
+            "kalibr": {
+                "active": True,
+                "total_action_events": len(kalibr_events),
+                "recent_events": kalibr_events[-5:],
+                "note": "Agent orchestration layer — failure detection + exponential backoff retry",
             },
         },
         "mcp_tools": [

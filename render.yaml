@@ -1,0 +1,51 @@
+services:
+  - type: web
+    name: trace-curiosity-os
+    runtime: python
+    plan: starter
+    buildCommand: pip install -e .
+    startCommand: python -m uvicorn trace.delivery.api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: APIFY_API_TOKEN
+        sync: false
+      - key: SLACK_WEBHOOK_URL
+        sync: false
+      - key: TIGRIS_ACCESS_KEY_ID
+        sync: false
+      - key: TIGRIS_SECRET_ACCESS_KEY
+        sync: false
+      - key: TIGRIS_BUCKET_NAME
+        value: trace-curiosity
+      - key: TIGRIS_ENDPOINT_URL
+        value: https://fly.storage.tigris.dev
+      - key: REDIS_URL
+        fromService:
+          name: trace-redis
+          type: redis
+          property: connectionString
+      - key: TRACE_DEMO_MODE
+        value: "false"
+      - key: PUBLIC_BASE_URL
+        fromService:
+          name: trace-curiosity-os
+          type: web
+          property: host
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: DATABASE_URL
+        value: sqlite+aiosqlite:///./trace_data.db
+      - key: UPLOAD_DIR
+        value: ./uploads
+      - key: SCALEKIT_ENV_URL
+        sync: false
+      - key: SCALEKIT_CLIENT_ID
+        sync: false
+      - key: SCALEKIT_CLIENT_SECRET
+        sync: false
+
+  - type: redis
+    name: trace-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru

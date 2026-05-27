@@ -1,8 +1,12 @@
 """
-Slack action — Tier A auto-execute via Scalekit Token Vault.
+Slack action — Tier A auto-execute via Scalekit Token Vault or direct webhook.
 
 Posts a DM to the user (self-DM) or to a hard-coded #trace-demo channel.
-The Slack OAuth token lives in Scalekit's encrypted Vault.
+
+DELIVERY PATHS (in priority order):
+  1. Scalekit Token Vault — full OAuth, multi-tenant
+  2. SLACK_WEBHOOK_URL env var — direct Incoming Webhook, zero-config demo path
+  3. Stub response (logged visibly for demo panel)
 
 MESSAGE FORMAT:
   Emerging interest: "🧠 Trace: New emerging interest — *topic*\n{briefing}"
@@ -15,9 +19,9 @@ SECURITY:
   - NEVER sends to arbitrary channels specified by agents.
 
 GRACEFUL DEGRADATION:
-  - Scalekit not configured → stub response
-  - Auth required → returns magic link
-  - API failure → error dict, never raises
+  - Scalekit configured → use Token Vault
+  - SLACK_WEBHOOK_URL set → direct webhook POST
+  - Neither → stub response (visible in /health endpoint)
 """
 from __future__ import annotations
 
@@ -30,6 +34,36 @@ _SLACK_TOOL = "slack_send_message"
 
 # Hard-coded demo channel — prevents injection. Override only via env.
 _DEMO_CHANNEL = "#trace-demo"
+
+
+async def _send_via_webhook(webhook_url: str, message: str, channel: str) -> dict[str, Any]:
+    """POST to a Slack Incoming Webhook URL directly."""
+    import httpx
+
+    payload = {
+        "text": message[:2000],
+        "username": "Trace Curiosity OS",
+        "icon_emoji": ":brain:",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(webhook_url, json=payload)
+            if resp.status_code == 200 and resp.text == "ok":
+                _log.info("[Slack] Webhook message sent to %s", channel)
+                return {
+                    "status": "sent",
+                    "channel": channel,
+                    "via": "webhook",
+                    "message_preview": message[:80],
+                }
+            return {
+                "status": "error",
+                "error": f"webhook returned {resp.status_code}: {resp.text}",
+                "channel": channel,
+            }
+    except Exception as exc:
+        _log.warning("[Slack] Webhook POST failed: %s", exc)
+        return {"status": "error", "error": str(exc), "channel": channel}
 
 
 async def send_pattern_alert(
@@ -46,17 +80,23 @@ async def send_pattern_alert(
     from trace.auth.scalekit import connect_execute_tool, connect_get_authorization_link, get_scalekit_client
     from trace.config import get_settings
 
-    connection_name = get_settings().scalekit_slack_connection
+    settings = get_settings()
+    connection_name = settings.scalekit_slack_connection
 
     # Whitelist channels — security boundary.
     allowed = {None, "#trace-demo", "self", _DEMO_CHANNEL}
     target_channel = channel if channel in allowed else _DEMO_CHANNEL
 
     if get_scalekit_client() is None:
-        _log.info("[Slack] Scalekit not configured — stub for channel=%r", target_channel)
+        # Fall back to direct Incoming Webhook if configured.
+        if settings.slack_webhook_url:
+            return await _send_via_webhook(settings.slack_webhook_url, message, target_channel or _DEMO_CHANNEL)
+
+        _log.info("[Slack] No delivery path configured — stub for channel=%r", target_channel)
         return {
             "status": "stub",
-            "reason": "scalekit_not_configured",
+            "reason": "no_delivery_path",
+            "hint": "Set SLACK_WEBHOOK_URL or configure Scalekit Connect",
             "channel": target_channel,
             "message_preview": message[:80],
         }

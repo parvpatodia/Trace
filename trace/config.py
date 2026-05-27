@@ -47,6 +47,17 @@ class Settings(BaseSettings):
     # Public base URL of this server — used as JWT audience for MCP Auth.
     public_base_url: str = "http://localhost:8000"
 
+    # Optional Slack Incoming Webhook URL — lets Tier A Slack alerts fire without
+    # Scalekit OAuth. Set SLACK_WEBHOOK_URL in .env for instant demo without setup.
+    slack_webhook_url: str | None = None
+
+    # Tigris Data — S3-compatible globally-distributed object storage.
+    # Set these to store uploads + Apify artifacts in Tigris instead of local disk.
+    tigris_access_key_id: str | None = None
+    tigris_secret_access_key: str | None = None
+    tigris_bucket_name: str = "trace-curiosity"
+    tigris_endpoint_url: str = "https://fly.storage.tigris.dev"
+
     # Redis URL for the curiosity graph cache (sub-50ms reads for MCP tools).
     redis_url: str | None = None
 

@@ -819,20 +819,28 @@ _FRONTEND_HTML = """<!DOCTYPE html>
     <div class="card-title">Powered by</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.7rem;font-size:0.78rem;">
       <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.85rem 0.9rem;">
+        <div style="font-weight:600;color:var(--text,#f1f5f9);margin-bottom:0.2rem;">Anthropic Claude</div>
+        <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">Topic extraction + significance gating + briefing</div>
+      </div>
+      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.85rem 0.9rem;">
         <div style="font-weight:600;color:var(--text,#f1f5f9);margin-bottom:0.2rem;">Apify MCP</div>
         <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">Dynamic Actor selection · 31k+ scrapers</div>
       </div>
       <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.85rem 0.9rem;">
         <div style="font-weight:600;color:var(--text,#f1f5f9);margin-bottom:0.2rem;">Scalekit</div>
-        <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">MCP Auth (OAuth 2.1) + Token Vault (Apify bridge)</div>
+        <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">OAuth 2.1 MCP Auth + Token Vault for connectors</div>
+      </div>
+      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.85rem 0.9rem;">
+        <div style="font-weight:600;color:var(--text,#f1f5f9);margin-bottom:0.2rem;">Tigris Data</div>
+        <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">S3-compatible global object storage for uploads + artifacts</div>
+      </div>
+      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.85rem 0.9rem;">
+        <div style="font-weight:600;color:var(--text,#f1f5f9);margin-bottom:0.2rem;">Kalibr</div>
+        <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">Agent orchestration · failure detection · auto-retry</div>
       </div>
       <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.85rem 0.9rem;">
         <div style="font-weight:600;color:var(--text,#f1f5f9);margin-bottom:0.2rem;">Redis</div>
         <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">Sub-50ms curiosity graph reads via ZSET</div>
-      </div>
-      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.85rem 0.9rem;">
-        <div style="font-weight:600;color:var(--text,#f1f5f9);margin-bottom:0.2rem;">Anthropic Claude</div>
-        <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">Topic extraction + briefing composition</div>
       </div>
     </div>
   </div>
@@ -1093,7 +1101,7 @@ _FRONTEND_HTML = """<!DOCTYPE html>
   <div id="approvals-list"></div>
 </div>
 
-<footer>Trace &mdash; Curiosity OS &middot; MCP AI Agents Hackathon &middot; Claude &middot; Apify MCP &middot; Scalekit &middot; Redis</footer>
+<footer>Trace &mdash; Curiosity OS &middot; Applied Intelligence Hackathon &middot; Claude &middot; Apify &middot; Scalekit &middot; Tigris Data &middot; Kalibr &middot; Redis</footer>
 
 <script>
 let newsletterData = null;
@@ -1706,8 +1714,10 @@ async def frontend() -> str:
 @app.get("/health")
 async def health() -> dict[str, Any]:
     """Enhanced liveness probe — includes per-sponsor status indicators."""
+    from trace.agent.kalibr_guard import get_event_log
     from trace.agent.scheduler import scheduler_status
     from trace.mcp.server import _redis_store
+    from trace.storage.tigris import get_tigris_store
 
     settings = get_settings()
 
@@ -1724,6 +1734,12 @@ async def health() -> dict[str, Any]:
         and settings.scalekit_client_id
         and settings.scalekit_client_secret
     )
+
+    tigris = get_tigris_store()
+    tigris_health = tigris.health()
+
+    slack_delivery = "scalekit" if scalekit_ok else ("webhook" if settings.slack_webhook_url else "stub")
+    recent_actions = get_event_log()[-10:]
 
     return {
         "status": "ok",
@@ -1751,6 +1767,22 @@ async def health() -> dict[str, Any]:
                 "indicator": "🟢" if redis_ok else ("🟡" if _redis_store.enabled else "⚪"),
                 "note": "Sub-50ms ZSET reads for curiosity graph",
             },
+            "tigris_data": {
+                **tigris_health,
+                "indicator": "🟢" if tigris_health.get("status") == "ok" else ("🟡" if tigris.enabled else "⚪"),
+                "note": "S3-compatible globally-distributed object storage for uploads + artifacts",
+            },
+            "kalibr": {
+                "active": True,
+                "indicator": "🟢",
+                "recent_actions": len(recent_actions),
+                "note": "Agent orchestration with failure detection + exponential backoff retry",
+            },
+            "slack_delivery": {
+                "mode": slack_delivery,
+                "indicator": "🟢" if slack_delivery != "stub" else "🟡",
+                "note": f"Active delivery path: {slack_delivery}",
+            },
         },
         "autonomous_loop": scheduler_status(),
         "capabilities": {
@@ -1759,7 +1791,10 @@ async def health() -> dict[str, Any]:
             "tier_a_actions": ["notion", "calendar", "slack"],
             "tier_b_drafts": ["gmail_draft", "reddit_post"],
             "graph_algo": ["embeddings", "pagerank", "louvain"],
+            "resilience": "kalibr_guard (3x retry + backoff)",
+            "storage": "tigris_data (S3-compatible)",
         },
+        "recent_kalibr_events": recent_actions,
     }
 
 
@@ -1849,6 +1884,17 @@ async def upload_file(
     save_path = upload_dir / f"{detected_type}_{upload_id}.json"
     save_path.write_bytes(content)
     _log.info("Uploaded %s (%d bytes) → %s", fname, size, save_path)
+
+    # Mirror upload to Tigris Data (non-blocking best-effort — local save is authoritative).
+    try:
+        from trace.storage.tigris import get_tigris_store
+        tigris = get_tigris_store()
+        if tigris.enabled:
+            tigris_uri = tigris.store_upload(upload_id, f"{detected_type}_{fname}", content)
+            if tigris_uri:
+                _log.info("[Tigris] Upload mirrored to %s", tigris_uri)
+    except Exception as _tigris_exc:
+        _log.debug("[Tigris] Upload mirror skipped: %s", _tigris_exc)
 
     return UploadResponse(
         upload_id=upload_id,
@@ -2210,9 +2256,16 @@ async def auth_me(
 
 @app.get("/auth/logout")
 async def auth_logout(post_logout_redirect_uri: str | None = None) -> dict[str, str]:
-    from scalekit.client import LogoutUrlOptions
+    try:
+        from scalekit.client import LogoutUrlOptions  # type: ignore[import]
+    except ImportError:
+        return {"logout_url": post_logout_redirect_uri or "/", "note": "scalekit_not_installed"}
 
-    client = _require_client()
+    try:
+        client = _require_client()
+    except Exception:
+        return {"logout_url": post_logout_redirect_uri or "/", "note": "scalekit_not_configured"}
+
     options = LogoutUrlOptions()
     if post_logout_redirect_uri:
         options.post_logout_redirect_uri = post_logout_redirect_uri
@@ -2496,13 +2549,16 @@ async def mcp_info() -> dict[str, Any]:
             "connect_link": f"{base}/auth/connect",
         },
         "sponsor_stack": {
+            "anthropic": bool(settings.anthropic_api_key),
             "apify_mcp": bool(settings.apify_api_token),
             "scalekit_connect": bool(
                 settings.scalekit_env_url
                 and settings.scalekit_client_id
                 and settings.scalekit_client_secret
             ),
+            "tigris_data": bool(settings.tigris_access_key_id),
+            "kalibr": True,
+            "slack_webhook": bool(settings.slack_webhook_url),
             "redis": bool(settings.redis_url),
-            "anthropic": bool(settings.anthropic_api_key),
         },
     }

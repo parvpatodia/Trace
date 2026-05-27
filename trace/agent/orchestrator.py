@@ -17,6 +17,7 @@ import logging
 from typing import Any
 
 from trace.agent.approvals import ApprovalsQueue, PendingAction, get_approvals_queue
+from trace.agent.kalibr_guard import execute_with_guard
 from trace.agent.patterns import PatternEvent
 from trace.config import get_settings
 from trace.models import CuriosityGraph
@@ -229,11 +230,19 @@ class AgentOrchestrator:
         briefing = await _quick_briefing(event.topic_name)
 
         if event.pattern_type == "emerging_interest":
-            # Tier A: Notion + Calendar + Slack (all auto-execute)
+            # Tier A: Notion + Calendar + Slack — all guarded by Kalibr for
+            # automatic retry and failure visibility.
             tasks = await asyncio.gather(
-                _dispatch_notion(event.topic_name, briefing, profile_id, event.pattern_type),
-                _dispatch_calendar(event.topic_name, briefing, profile_id, event.pattern_type),
-                _dispatch_slack(
+                execute_with_guard(
+                    _dispatch_notion, "notion_page", event.topic_name,
+                    event.topic_name, briefing, profile_id, event.pattern_type,
+                ),
+                execute_with_guard(
+                    _dispatch_calendar, "calendar_event", event.topic_name,
+                    event.topic_name, briefing, profile_id, event.pattern_type,
+                ),
+                execute_with_guard(
+                    _dispatch_slack, "slack_alert", event.topic_name,
                     f"🧠 Trace: New emerging interest — *{event.topic_name}*\n{briefing}",
                     profile_id,
                 ),
@@ -249,14 +258,18 @@ class AgentOrchestrator:
             return [result]
 
         elif event.pattern_type == "bridge_topic_shift":
-            # Tier A: Slack + Notion; Tier B: Reddit draft
+            # Tier A: Slack + Notion guarded by Kalibr; Tier B: Reddit draft
             tier_a = await asyncio.gather(
-                _dispatch_slack(
+                execute_with_guard(
+                    _dispatch_slack, "slack_alert", event.topic_name,
                     f"🌉 Trace: Bridge shift — *{event.topic_name}* connects "
                     f"{', '.join(event.supporting_topics[:2])}.\n{briefing}",
                     profile_id,
                 ),
-                _dispatch_notion(event.topic_name, briefing, profile_id, event.pattern_type),
+                execute_with_guard(
+                    _dispatch_notion, "notion_page", event.topic_name,
+                    event.topic_name, briefing, profile_id, event.pattern_type,
+                ),
                 return_exceptions=True,
             )
             tier_b = await _draft_reddit(
