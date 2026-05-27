@@ -92,10 +92,16 @@ mcp = _build_mcp()
 # ── Tool helpers ──────────────────────────────────────────────────────────────
 
 def _get_profile_graph(profile_id: str) -> CuriosityGraph | None:
-    """Load a CuriosityGraph: Redis first, then in-memory api.py cache."""
-    # Try Redis synchronously via a helper (called from sync context in tools).
-    # The async load is done by callers who await _load_graph_async().
-    return None  # sync stub; real load is async — see _load_graph_async
+    """Load a CuriosityGraph from the in-memory api.py cache (sync fallback).
+
+    MCP tools that run in an async context should prefer _load_graph_async()
+    which also checks Redis. This function is kept for any sync-only callers.
+    """
+    try:
+        from trace.delivery.api import _PROFILE_CACHE  # type: ignore[import]
+        return _PROFILE_CACHE.get(profile_id)
+    except Exception:
+        return None
 
 
 async def _load_graph_async(profile_id: str) -> CuriosityGraph | None:

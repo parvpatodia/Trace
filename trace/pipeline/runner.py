@@ -294,7 +294,17 @@ class TracePipeline:
             "graph": graph,
             "articles": scrape["articles"],
         })
-        nl = await self._node_compose_newsletter({"context": ctx["context"]})
+        context = ctx.get("context")
+        if context is None:
+            raise PipelineError("assemble_context returned None — no topics or articles to compose")
+        nl = await self._node_compose_newsletter({
+            "signals": [],
+            "graph": graph,
+            "articles": scrape["articles"],
+            "context": context,
+            "newsletter": None,
+            "errors": scrape["errors"],
+        })
         return PipelineResult(
             newsletter=nl["newsletter"],
             graph=graph,

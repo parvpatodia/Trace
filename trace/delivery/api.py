@@ -2652,9 +2652,10 @@ async def approve_action(action_id: str) -> dict[str, Any]:
             from trace.actions.gmail_draft import create_digest_draft
             payload = action.payload
             execution_result = await create_digest_draft(
-                topic_name=payload.get("subject", action.title).replace("[Trace] Curiosity digest: ", ""),
+                topic_name=payload.get("subject", action.title).replace("[Trace] Curiosity digest: ", "").replace("[Trace] Reading list: ", ""),
                 briefing=payload.get("body", action.preview),
                 profile_id=action.profile_id,
+                source_urls=payload.get("source_urls", []),
                 pattern_type=action.pattern_event_type,
             )
         except Exception as exc:
