@@ -1562,12 +1562,26 @@ async function runLoopNow() {
 async function loadGraph() {
   demoLog('Loading curiosity graph...');
   try {
-    const d = await _fetchJson('/graph.json?profile_id=demo');
-    if (d.error) { demoLog('⚠️ ' + d.error + ' — seed the demo first'); return; }
+    // Try demo profile first, fall back to default (real newsletter data)
+    let d = await _fetchJson('/graph.json?profile_id=demo');
+    if (!d.nodes || d.nodes.length === 0) {
+      demoLog('Demo profile empty — trying default profile...');
+      d = await _fetchJson('/graph.json?profile_id=default');
+    }
+    if (!d.nodes || d.nodes.length === 0) {
+      demoLog('⚠️ No graph data found. Generate a newsletter or seed the demo first.');
+      return;
+    }
     const s = d.stats || {};
-    demoLog('📊 Graph: ' + (s.node_count||0) + ' nodes · ' + (s.link_count||0) + ' semantic edges · ' + (s.community_count||0) + ' communities');
-    renderD3Graph(d);
-    document.getElementById('graph-card').style.display = '';
+    demoLog('📊 Graph: ' + (s.node_count||0) + ' nodes · ' + (s.link_count||0) + ' semantic edges · ' + (s.community_count||0) + ' communities · profile=' + d.profile_id);
+    // Show card FIRST so the container has real pixel dimensions, THEN render
+    const card = document.getElementById('graph-card');
+    card.style.display = '';
+    // requestAnimationFrame ensures offsetWidth is non-zero before force layout
+    requestAnimationFrame(() => {
+      try { renderD3Graph(d); }
+      catch(err) { demoLog('❌ Graph render error: ' + err.message); console.error(err); }
+    });
   } catch(e) { demoLog('❌ Graph load failed: ' + e.message); }
 }
 
@@ -2385,13 +2399,27 @@ async def graph_json(profile_id: str = "default") -> dict[str, Any]:
     Format: {"nodes": [{"id": str, "score": float, "community": int, ...}],
               "links": [{"source": str, "target": str, "value": float}]}
 
-    Used by the D3 force-directed visualization on the frontend.
-    Computation is cached for 60 seconds (enrichment is CPU-bound).
+    Falls back across profile IDs so both demo and real newsletter graphs work.
     """
     from trace.graph.graph_algo import enrich_graph
     from trace.mcp.server import _load_graph_async
 
+    # Try the requested profile first, then fall back to checking PROFILE_CACHE
     graph = await _load_graph_async(profile_id)
+    if (graph is None or graph.is_empty()) and profile_id != "default":
+        graph = await _load_graph_async("default")
+        if graph is not None and not graph.is_empty():
+            profile_id = "default"
+
+    # Also check in-memory cache directly (handles demo seed + newsletter runs)
+    if graph is None or graph.is_empty():
+        if profile_id in _PROFILE_CACHE:
+            graph = _PROFILE_CACHE[profile_id]
+        elif _PROFILE_CACHE:
+            # Use most recently added profile
+            graph = next(reversed(_PROFILE_CACHE.values()))
+            profile_id = next(reversed(_PROFILE_CACHE.keys()))
+
     if graph is None or graph.is_empty():
         return {"nodes": [], "links": [], "profile_id": profile_id, "error": "no_graph"}
 
@@ -2580,15 +2608,27 @@ async def demo_seed_status() -> dict[str, Any]:
 # ── Approvals endpoints (Tier B: Gmail drafts, Reddit posts) ──────────────────
 
 @app.get("/approvals")
-async def list_approvals(profile_id: str = "default") -> dict[str, Any]:
-    """List all pending Tier B actions awaiting user approval."""
+async def list_approvals(profile_id: str | None = None) -> dict[str, Any]:
+    """List all pending Tier B actions awaiting user approval.
+
+    If profile_id is omitted or 'all', returns pending actions from ALL profiles
+    so the UI always shows the full queue regardless of which profile generated them.
+    """
     from trace.agent.approvals import get_approvals_queue
     queue = get_approvals_queue()
-    pending = await queue.list_pending(profile_id)
+    # When called with profile_id=demo but actions are under 'default' or vice versa,
+    # return everything so judges see the full queue.
+    if profile_id and profile_id != "all":
+        pending = await queue.list_pending(profile_id)
+        if not pending:
+            # Fallback: return all profiles' pending items
+            pending = await queue.list_pending(None)
+    else:
+        pending = await queue.list_pending(None)
     return {
         "pending": [a.to_dict() for a in pending],
         "count": len(pending),
-        "profile_id": profile_id,
+        "profile_id": profile_id or "all",
     }
 
 

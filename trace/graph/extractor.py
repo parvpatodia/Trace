@@ -74,14 +74,23 @@ _SYSTEM_PROMPT = """You are a curiosity analyst. Your task is to identify topics
 
 A signal is a piece of text extracted from their browser history, saved Reddit posts, ChatGPT conversations, local documents, or similar sources.
 
-Your job: given a batch of signals, identify the distinct topics the person is actively exploring and learning about.
+Your job: given a batch of signals, identify the distinct topics the person is actively LEARNING about or intellectually exploring.
 
 Rules:
 1. Extract 1-10 topics per batch. Do not over-fragment into tiny subtopics.
 2. Each topic must have a canonical name: lowercase, 2-5 words, specific enough to be actionable.
 3. Associate each signal_id with at most one topic (the most relevant one).
-4. Ignore signals that don't represent genuine curiosity: pure navigation, e-commerce, social browsing, news headlines without depth.
+4. STRICTLY IGNORE signals that don't represent genuine learning curiosity:
+   - Pure entertainment: sports scores, celebrity news, reality TV, gaming sessions
+   - Pure navigation: e-commerce browsing, social media scrolling, food delivery
+   - Transient news: current events without a learning angle ("Who won the game?")
+   - Social browsing: Reddit memes, Twitter drama, viral videos
+   EXCEPTION: if someone shows deep, sustained interest in sports ANALYTICS,
+   chess STRATEGY theory, or competitive gaming mechanics — that IS curiosity.
+   The test: "Would this person want a 2-page deep dive written for them?" If no, skip it.
 5. Aliases are optional synonyms or related terms for the topic.
+6. Topic names must be specific: not "machine learning" but "transformer fine-tuning";
+   not "programming" but "rust async programming" or "python type hints".
 
 Respond ONLY with a valid JSON array in this exact format (no prose, no markdown, no code fences):
 [
@@ -92,7 +101,7 @@ Respond ONLY with a valid JSON array in this exact format (no prose, no markdown
   }
 ]
 
-If no topics are found, respond with an empty array: []"""
+If no topics worthy of a curiosity digest are found, respond with an empty array: []"""
 
 
 class TopicExtractor:
