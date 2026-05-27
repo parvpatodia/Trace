@@ -51,6 +51,18 @@ _log.info(
     _DEMO_MODE, _GMAIL_INTERVAL, _APIFY_INTERVAL, _PATTERN_INTERVAL,
 )
 
+# Rotate through varied demo signals so the loop looks live, not looped.
+_DEMO_GMAIL_SIGNALS = [
+    "AI alignment weekly: RLHF vs constitutional AI trade-offs",
+    "diffusion models for robot manipulation — new paper from Berkeley",
+    "nuplan benchmark: closed-loop planning leaderboard updated",
+    "Karpathy on minGPT v2: simplicity as a design constraint",
+    "embodied AI survey: progress in sim-to-real transfer 2024",
+    "Rust async book updated — new chapter on structured concurrency",
+    "pose estimation in the wild — ECCV 2024 best paper nominee",
+]
+_demo_gmail_idx = 0
+
 
 # ── Graph snapshot store for diff-based pattern detection ────────────────────
 # Keyed by profile_id.  Previous graph retained so detectors can compute deltas.
@@ -78,18 +90,21 @@ async def _job_poll_gmail() -> None:
             bucket.extend(signals)
             _log.info("[scheduler] poll_gmail_signals: +%d signals (total pending=%d)", len(signals), len(bucket))
         except ImportError:
-            # Gmail collector not yet built — Phase 2.  Synthesize a stub signal in DEMO_MODE.
+            # Gmail collector not yet built — Phase 2.  Synthesize varied stub signals in DEMO_MODE.
             if _DEMO_MODE:
+                global _demo_gmail_idx
+                content = "[demo] " + _DEMO_GMAIL_SIGNALS[_demo_gmail_idx % len(_DEMO_GMAIL_SIGNALS)]
+                _demo_gmail_idx += 1
                 stub = RawSignal(
                     id=str(uuid.uuid4()),
                     source=SignalSource.GMAIL,
-                    content="[demo] newsletter signal: AI alignment weekly digest",
+                    content=content,
                     timestamp=datetime.now(timezone.utc),
                     metadata={"demo": True},
                 )
                 bucket = _pending_signals.setdefault(_DEFAULT_PROFILE, [])
                 bucket.append(stub)
-                _log.info("[scheduler] poll_gmail_signals (DEMO stub): pending=%d", len(bucket))
+                _log.info("[scheduler] poll_gmail_signals (DEMO stub): %r pending=%d", content[:60], len(bucket))
         except Exception as exc:
             _log.warning("[scheduler] GmailCollector failed: %s", exc)
     except Exception as exc:

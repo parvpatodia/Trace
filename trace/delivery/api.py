@@ -1072,24 +1072,32 @@ _FRONTEND_HTML = """<!DOCTYPE html>
 <!-- Demo Control Panel -->
 <div class="card" style="border-color:#f59e0b;">
   <div class="card-title" style="color:#fbbf24;">🎬 Demo Control Panel</div>
+
+  <!-- Live loop status bar -->
+  <div id="loop-status-bar" style="display:flex;align-items:center;gap:0.6rem;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:0.55rem 0.8rem;margin-bottom:0.85rem;font-size:0.76rem;">
+    <span id="loop-dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#475569;flex-shrink:0;"></span>
+    <span id="loop-status-text" style="color:#94a3b8;">Checking autonomous loop status...</span>
+    <span style="margin-left:auto;color:#475569;font-size:0.7rem;" id="loop-next-run"></span>
+  </div>
+
   <p style="color:var(--muted);font-size:0.8rem;margin-bottom:0.8rem;">
-    For hackathon judges: inject the demo profile and watch the autonomous loop run in real-time.
+    For hackathon judges: one-click autonomous agent demo — no credentials needed.
   </p>
   <div style="display:flex;gap:0.7rem;flex-wrap:wrap;margin-bottom:0.8rem;">
     <button onclick="seedDemo()" style="background:#f59e0b;color:#000;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;font-weight:600;">
       1. Seed Demo Profile
     </button>
-    <button onclick="loadGraph()" style="background:#6366f1;color:#fff;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">
-      2. Show Curiosity Graph
+    <button onclick="runLoopNow()" style="background:#10b981;color:#fff;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;font-weight:600;">
+      2. Run Autonomous Loop Now ▶
     </button>
-    <button onclick="injectAndShow()" style="background:#10b981;color:#fff;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">
-      3. Inject Signal + Trigger Loop
+    <button onclick="loadGraph()" style="background:#6366f1;color:#fff;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">
+      3. Show Curiosity Graph
     </button>
     <button onclick="checkApprovals()" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">
       4. Check Pending Approvals
     </button>
   </div>
-  <pre id="demo-output" style="background:#0f172a;color:#94a3b8;border:1px solid #334155;border-radius:6px;padding:0.8rem;font-size:0.75rem;max-height:200px;overflow-y:auto;white-space:pre-wrap;"></pre>
+  <pre id="demo-output" style="background:#0f172a;color:#94a3b8;border:1px solid #334155;border-radius:6px;padding:0.8rem;font-size:0.75rem;max-height:250px;overflow-y:auto;white-space:pre-wrap;"></pre>
 </div>
 
 <!-- Pending Approvals Panel -->
@@ -1491,21 +1499,6 @@ async function connectService(connectionName) {
   }
 }
 
-// ── Demo: inject signal ───────────────────────────────────────────────────────
-async function injectDemoSignal(observation) {
-  try {
-    const r = await fetch('/demo/inject-signal', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({observation: observation || 'diffusion policy robotics research', source: 'demo-ui', profile_id: 'demo'})
-    });
-    const data = await r.json();
-    return data;
-  } catch (err) {
-    console.error('demo inject failed:', err);
-  }
-}
-
 // ── Demo Control Panel ────────────────────────────────────────────────────────
 function demoLog(msg) {
   const el = document.getElementById('demo-output');
@@ -1514,59 +1507,118 @@ function demoLog(msg) {
   el.textContent = '[' + ts + '] ' + msg + '\n' + el.textContent;
 }
 
+async function _fetchJson(url, opts) {
+  const r = await fetch(url, opts || {});
+  if (!r.ok) {
+    let detail = '';
+    try { const e = await r.json(); detail = e.detail || JSON.stringify(e); } catch(_){}
+    throw new Error('HTTP ' + r.status + (detail ? ': ' + detail : ''));
+  }
+  return r.json();
+}
+
 async function seedDemo() {
-  demoLog('Seeding demo profile...');
+  demoLog('Seeding demo profile with ML/robotics curiosity graph...');
   try {
-    const r = await fetch('/demo/seed', {method: 'POST'});
-    const d = await r.json();
-    demoLog('✅ Seeded: ' + d.topic_count + ' topics | profile_id=' + d.profile_id);
-    demoLog('Topics: ' + d.topics.join(', '));
+    const d = await _fetchJson('/demo/seed', {method: 'POST'});
+    demoLog('✅ Seeded ' + d.topic_count + ' topics | profile=' + d.profile_id);
+    demoLog('   Topics: ' + (d.topics || []).join(', '));
+    demoLog('   → Now click "Run Autonomous Loop Now" to see agent in action');
   } catch(e) { demoLog('❌ Seed failed: ' + e.message); }
+}
+
+async function runLoopNow() {
+  demoLog('▶ Running pattern detection + autonomous dispatch...');
+  const btn = document.querySelector('[onclick="runLoopNow()"]');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Running...'; }
+  try {
+    const d = await _fetchJson('/demo/run-detect', {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({profile_id: 'demo'})
+    });
+    demoLog('🔍 Patterns detected: ' + d.patterns_detected + ' | Actions dispatched: ' + d.actions_dispatched);
+    if (d.patterns && d.patterns.length > 0) {
+      d.patterns.forEach(p => demoLog('  📌 ' + p.pattern + ' → "' + p.topic + '" (score=' + p.score + ')'));
+    } else {
+      demoLog('  ℹ No new patterns — try clicking again or seeding first');
+    }
+    if (d.actions && d.actions.length > 0) {
+      demoLog('⚡ Agent actions:');
+      d.actions.forEach(a => {
+        const status = a.status || '?';
+        const icon = status === 'sent' ? '✅' : status === 'created' ? '✅' : status === 'queued_for_approval' ? '📬' : status === 'stub' ? '🔵' : '⚠️';
+        demoLog('  ' + icon + ' ' + (a.action_type || a.via || status) + (a.topic || a.title ? ' — ' + (a.topic || (a.title||'').slice(0,40)) : ''));
+      });
+    }
+    // Auto-refresh approvals.
+    setTimeout(checkApprovals, 300);
+  } catch(e) {
+    demoLog('❌ Detect failed: ' + e.message + ' — did you seed the demo profile first?');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '2. Run Autonomous Loop Now ▶'; }
+  }
 }
 
 async function loadGraph() {
   demoLog('Loading curiosity graph...');
   try {
-    const r = await fetch('/graph.json?profile_id=demo');
-    const d = await r.json();
-    if (d.error) { demoLog('⚠️ ' + d.error); return; }
-    demoLog('Graph: ' + d.stats.node_count + ' nodes, ' + d.stats.link_count + ' edges, ' + d.stats.community_count + ' communities');
+    const d = await _fetchJson('/graph.json?profile_id=demo');
+    if (d.error) { demoLog('⚠️ ' + d.error + ' — seed the demo first'); return; }
+    const s = d.stats || {};
+    demoLog('📊 Graph: ' + (s.node_count||0) + ' nodes · ' + (s.link_count||0) + ' semantic edges · ' + (s.community_count||0) + ' communities');
     renderD3Graph(d);
     document.getElementById('graph-card').style.display = '';
   } catch(e) { demoLog('❌ Graph load failed: ' + e.message); }
 }
 
-async function injectAndShow() {
-  demoLog('Injecting demo signal...');
-  try {
-    const topics = ['diffusion policy breakthrough paper', 'embodied AI new robot benchmark', 'nuplan closed-loop evaluation'];
-    const obs = topics[Math.floor(Math.random() * topics.length)];
-    const r = await fetch('/demo/inject-signal', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({observation: obs, source: 'demo-panel', profile_id: 'demo'})
-    });
-    const d = await r.json();
-    demoLog('✅ Signal injected: "' + obs.slice(0,50) + '"');
-    demoLog('Pending signals: ' + d.pending_count);
-    demoLog('⏱ Autonomous loop will detect patterns in ~30s (DEMO_MODE)');
-  } catch(e) { demoLog('❌ Inject failed: ' + e.message); }
-}
-
 async function checkApprovals() {
-  demoLog('Checking pending approvals...');
   try {
-    const r = await fetch('/approvals?profile_id=demo');
-    const d = await r.json();
-    demoLog('Pending approvals: ' + d.count);
+    const d = await _fetchJson('/approvals?profile_id=demo');
+    demoLog('📬 Pending approvals: ' + d.count + (d.count === 0 ? ' — run the loop first' : ''));
     if (d.count > 0) {
       document.getElementById('approvals-card').style.display = '';
       renderApprovals(d.pending);
-    } else {
-      demoLog('No pending actions yet — run the loop first.');
     }
   } catch(e) { demoLog('❌ Approvals check failed: ' + e.message); }
 }
+
+// ── Live loop status bar ───────────────────────────────────────────────────────
+async function refreshLoopStatus() {
+  try {
+    const d = await _fetchJson('/agent/status');
+    const dot = document.getElementById('loop-dot');
+    const txt = document.getElementById('loop-status-text');
+    const nxt = document.getElementById('loop-next-run');
+    if (!dot || !txt) return;
+    if (d.enabled && d.running) {
+      dot.style.background = '#10b981';
+      const mode = d.demo_mode ? ' · DEMO_MODE (30s intervals)' : ' · production intervals';
+      txt.style.color = '#10b981';
+      txt.textContent = '⚡ Autonomous loop RUNNING' + mode;
+      const detectJob = (d.jobs || []).find(j => j.id === 'detect_and_act');
+      if (detectJob && detectJob.next_run) {
+        const secs = Math.max(0, Math.round((new Date(detectJob.next_run) - Date.now()) / 1000));
+        nxt.textContent = 'next detect in ' + secs + 's';
+      }
+    } else if (d.enabled) {
+      dot.style.background = '#f59e0b';
+      txt.style.color = '#f59e0b';
+      txt.textContent = '⏸ Scheduler built but not running';
+      nxt.textContent = '';
+    } else {
+      dot.style.background = '#ef4444';
+      txt.style.color = '#94a3b8';
+      txt.textContent = '⚠ Autonomous loop disabled — use "Run Autonomous Loop Now" for on-demand detection';
+      nxt.textContent = '';
+    }
+  } catch(_) {
+    const txt = document.getElementById('loop-status-text');
+    if (txt) txt.textContent = 'Could not reach /agent/status';
+  }
+}
+// Poll status every 5 seconds.
+refreshLoopStatus();
+setInterval(refreshLoopStatus, 5000);
 
 function renderApprovals(items) {
   const el = document.getElementById('approvals-list');
@@ -1589,21 +1641,21 @@ function renderApprovals(items) {
 async function approveAction(id) {
   demoLog('Approving action ' + id.slice(0,8) + '...');
   try {
-    const r = await fetch('/approvals/' + id + '/approve', {method: 'POST'});
-    const d = await r.json();
-    demoLog('✅ Approved: ' + d.action.action_type + ' — ' + d.action.title.slice(0,50));
+    const d = await _fetchJson('/approvals/' + id + '/approve', {method: 'POST'});
+    const a = d.action || {};
+    demoLog('✅ Approved: ' + (a.action_type || '?') + ' — ' + (a.title || '').slice(0,50));
     checkApprovals();
-  } catch(e) { demoLog('❌ ' + e.message); }
+  } catch(e) { demoLog('❌ Approve failed: ' + e.message); }
 }
 
 async function rejectAction(id) {
   demoLog('Rejecting action ' + id.slice(0,8) + '...');
   try {
-    const r = await fetch('/approvals/' + id + '/reject', {method: 'POST'});
-    const d = await r.json();
-    demoLog('✗ Rejected: ' + d.action.action_type);
+    const d = await _fetchJson('/approvals/' + id + '/reject', {method: 'POST'});
+    const a = d.action || {};
+    demoLog('✗ Rejected: ' + (a.action_type || '?'));
     checkApprovals();
-  } catch(e) { demoLog('❌ ' + e.message); }
+  } catch(e) { demoLog('❌ Reject failed: ' + e.message); }
 }
 
 // ── D3 Force-Directed Graph ───────────────────────────────────────────────────
@@ -1678,18 +1730,31 @@ function renderD3Graph(data) {
   // Draw nodes.
   const nodeG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   nodes.forEach(n => {
-    const r = Math.max(6, Math.min(20, 6 + n.blended_score * 28));
-    const color = communityColors[(n.community || 0) % communityColors.length];
+    const score = typeof n.blended_score === 'number' ? n.blended_score : 0.3;
+    const community = typeof n.community === 'number' ? n.community : 0;
+    const radius = Math.max(7, Math.min(22, 7 + score * 30));
+    const color = communityColors[community % communityColors.length];
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.setAttribute('transform', 'translate('+n.x+','+n.y+')');
+    g.style.cursor = 'pointer';
+
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    circle.setAttribute('r', r); circle.setAttribute('fill', color); circle.setAttribute('opacity', 0.85);
+    circle.setAttribute('r', radius); circle.setAttribute('fill', color);
+    circle.setAttribute('opacity', 0.88);
+    circle.setAttribute('stroke', '#fff'); circle.setAttribute('stroke-width', '0.5');
+    circle.setAttribute('stroke-opacity', '0.3');
+
     const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-    title.textContent = n.id + ' (score:' + n.blended_score + ', community:' + n.community + ')';
+    title.textContent = n.id + '\nscore: ' + score.toFixed(3) + '\ncommunity: ' + community;
+
     const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    label.setAttribute('dy', r+11); label.setAttribute('text-anchor', 'middle');
-    label.setAttribute('fill', '#cbd5e1'); label.setAttribute('font-size', '9');
-    label.textContent = n.id.slice(0,18);
+    label.setAttribute('dy', radius + 12);
+    label.setAttribute('text-anchor', 'middle');
+    label.setAttribute('fill', '#e2e8f0');
+    label.setAttribute('font-size', '9');
+    label.setAttribute('font-family', 'ui-monospace, monospace');
+    label.textContent = n.id.length > 16 ? n.id.slice(0,15) + '…' : n.id;
+
     g.appendChild(circle); g.appendChild(title); g.appendChild(label);
     nodeG.appendChild(g);
   });
@@ -2413,6 +2478,74 @@ async def demo_inject_signal(request: Request) -> dict[str, Any]:
         "pending_count": len(bucket),
         "profile_id": profile_id,
         "message": "Signal injected. Run detect_and_act to process it into the curiosity graph.",
+    }
+
+
+@app.post("/demo/run-detect")
+async def demo_run_detect(request: Request) -> dict[str, Any]:
+    """Immediately run the pattern detector and orchestrator on the demo graph.
+
+    This is the on-demand equivalent of what the autonomous scheduler does every
+    30 seconds in DEMO_MODE.  Calling this endpoint lets judges see the full
+    agent loop — pattern detection → significance gate → Tier A/B action dispatch
+    — without waiting for the scheduler interval.
+
+    Body (JSON): {"profile_id": str}  (default: "demo")
+    """
+    from trace.agent.orchestrator import AgentOrchestrator
+    from trace.agent.patterns import run_all_detectors
+    from trace.agent.scheduler import _previous_graphs
+    from trace.mcp.server import _load_graph_async, _pending_signals
+
+    body: dict[str, Any] = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    profile_id = str(body.get("profile_id", "demo")).strip() or "demo"
+
+    graph = await _load_graph_async(profile_id)
+    if graph is None or graph.is_empty():
+        return {
+            "status": "no_graph",
+            "profile_id": profile_id,
+            "hint": "Call POST /demo/seed first to populate the demo profile",
+        }
+
+    previous = _previous_graphs.get(profile_id)
+    pending_count = len(_pending_signals.get(profile_id, []))
+
+    events = run_all_detectors(
+        current_graph=graph,
+        previous_graph=previous,
+        pending_signals_count=pending_count,
+    )
+
+    event_summaries = [
+        {"pattern": e.pattern_type, "topic": e.topic_name, "score": round(e.score, 3)}
+        for e in events
+    ]
+
+    actions: list[dict[str, Any]] = []
+    if events:
+        orchestrator = AgentOrchestrator()
+        actions = await orchestrator.process_events(events, graph, profile_id)
+        # Advance the snapshot so next call detects *new* changes (delta-based detection).
+        _previous_graphs[profile_id] = graph
+
+    _log.info(
+        "demo/run-detect: profile=%s patterns=%d actions=%d",
+        profile_id, len(events), len(actions),
+    )
+    return {
+        "status": "ok",
+        "profile_id": profile_id,
+        "graph_topics": len(graph.topics),
+        "patterns_detected": len(events),
+        "patterns": event_summaries,
+        "actions_dispatched": len(actions),
+        "actions": actions,
+        "pending_signals_consumed": pending_count,
     }
 
 

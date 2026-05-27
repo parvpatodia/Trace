@@ -590,5 +590,12 @@ async def health() -> dict[str, Any]:
 
 
 def get_mcp_asgi_app() -> Any:
-    """Return the FastMCP ASGI app for mounting in FastAPI."""
-    return mcp.get_asgi_app()
+    """Return the FastMCP ASGI app for mounting in FastAPI.
+
+    Tries streamable_http_app() (MCP SDK >= 1.2) then sse_app() as fallback.
+    """
+    if hasattr(mcp, "streamable_http_app"):
+        return mcp.streamable_http_app()
+    if hasattr(mcp, "sse_app"):
+        return mcp.sse_app()
+    raise RuntimeError("FastMCP instance has no ASGI app factory method — check mcp SDK version")
