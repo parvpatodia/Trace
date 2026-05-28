@@ -406,7 +406,17 @@ async def generate_briefing(
     response = await asyncio.to_thread(
         lambda: client.messages.create(
             model=s.anthropic_model,
-            max_tokens=1024,
+            max_tokens=2048,
+            system=[{
+                "type": "text",
+                "text": (
+                    "You are an elite research analyst. Write with precision and insight. "
+                    "Lead with the most surprising or non-obvious finding. Be specific — "
+                    "name papers, authors, numbers. Mirror the user's vocabulary from the "
+                    "context provided. Never pad with generic AI commentary."
+                ),
+                "cache_control": {"type": "ephemeral"},
+            }],
             messages=[{"role": "user", "content": prompt}],
         )
     )

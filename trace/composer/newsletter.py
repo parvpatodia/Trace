@@ -327,7 +327,23 @@ def _render_plain(subject: str, sections: tuple[NewsletterSection, ...]) -> str:
     for s in sections:
         lines.append(s.title)
         lines.append("-" * len(s.title))
+        if s.tldr:
+            lines.append("TL;DR:")
+            for b in s.tldr:
+                lines.append(f"  • {b}")
+            lines.append("")
         lines.append(s.content)
+        if s.deep_insight:
+            lines.append("")
+            lines.append("Deep Insight:")
+            lines.append(s.deep_insight)
+        if s.why_this_matters:
+            lines.append("")
+            lines.append(f"Why now: {s.why_this_matters}")
+        if s.action_item:
+            lines.append(f"→ Try this: {s.action_item}")
+        if s.connection:
+            lines.append(f"Connection: {s.connection}")
         if s.source_urls:
             lines.append("")
             for url in s.source_urls:
@@ -338,18 +354,64 @@ def _render_plain(subject: str, sections: tuple[NewsletterSection, ...]) -> str:
 
 def _render_html(subject: str, sections: tuple[NewsletterSection, ...]) -> str:
     e = _html.escape
+
+    def p(text: str) -> str:
+        return "".join(f"<p>{e(para)}</p>" for para in text.split("\n\n") if para.strip())
+
     parts = [
-        "<!DOCTYPE html><html><body>",
-        f"<h1>{e(subject)}</h1>",
+        '<!DOCTYPE html><html><head><meta charset="UTF-8"></head>',
+        '<body style="font-family:system-ui,sans-serif;max-width:680px;margin:0 auto;'
+        'padding:24px;background:#0a0a14;color:#e0e0f0">',
+        f'<h1 style="font-size:1.4rem;font-weight:700;margin-bottom:24px">{e(subject)}</h1>',
     ]
     for s in sections:
-        parts.append(f"<h2>{e(s.title)}</h2>")
-        parts.append(f"<p>{e(s.content)}</p>")
+        parts.append('<div style="margin-bottom:2rem;padding-bottom:1.5rem;'
+                     'border-bottom:1px solid rgba(148,163,255,0.1)">')
+        parts.append(f'<h2 style="font-size:1.05rem;font-weight:700;margin-bottom:0.5rem">'
+                     f'{e(s.title)}</h2>')
+        if s.tldr:
+            parts.append('<div style="background:rgba(99,102,241,0.08);border:1px solid '
+                         'rgba(99,102,241,0.2);border-radius:6px;padding:12px 16px;'
+                         'margin-bottom:12px">')
+            parts.append('<div style="font-size:0.65rem;font-weight:700;letter-spacing:0.12em;'
+                         'text-transform:uppercase;color:#a78bfa;margin-bottom:8px">TL;DR</div>')
+            parts.append('<ul style="margin:0;padding:0;list-style:none">')
+            for b in s.tldr:
+                parts.append(f'<li style="font-size:0.88rem;padding:3px 0;color:#e0e0f0">'
+                              f'<span style="color:#a78bfa">• </span>{e(b)}</li>')
+            parts.append("</ul></div>")
+        parts.append(f'<div style="color:#c0c8e0;line-height:1.75;font-size:0.9rem">'
+                     f'{p(s.content)}</div>')
+        if s.deep_insight:
+            parts.append('<div style="border-left:3px solid #10b981;padding:10px 14px;'
+                         'margin:12px 0;background:rgba(16,185,129,0.05)">')
+            parts.append('<div style="font-size:0.6rem;font-weight:700;letter-spacing:0.12em;'
+                         'text-transform:uppercase;color:#10b981;margin-bottom:6px">Deep Insight</div>')
+            parts.append(f'<div style="font-size:0.88rem;color:#c8e6c9;line-height:1.7">'
+                         f'{p(s.deep_insight)}</div></div>')
+        if s.why_this_matters:
+            parts.append('<div style="border-left:2px solid #f59e0b;padding:8px 12px;'
+                         'margin:8px 0;background:rgba(245,158,11,0.05);font-size:0.85rem;'
+                         'color:#d1b896">')
+            parts.append(f'<strong style="color:#f59e0b">Why now:</strong> {e(s.why_this_matters)}'
+                         f'</div>')
+        if s.action_item:
+            parts.append('<div style="border-left:2px solid #22d3ee;padding:8px 12px;'
+                         'margin:8px 0;background:rgba(34,211,238,0.05);font-size:0.85rem;'
+                         'color:#22d3ee">')
+            parts.append(f'→ <strong>Try this:</strong> {e(s.action_item)}</div>')
+        if s.connection:
+            parts.append(f'<div style="font-size:0.82rem;color:#6b7280;font-style:italic;'
+                         f'border-top:1px solid rgba(148,163,255,0.08);padding-top:10px;'
+                         f'margin-top:10px"><strong style="font-style:normal;color:#9ca3af">'
+                         f'Connection:</strong> {e(s.connection)}</div>')
         if s.source_urls:
-            parts.append("<ul>")
+            parts.append('<div style="margin-top:10px">')
             for url in s.source_urls:
                 safe_url = e(url, quote=True)
-                parts.append(f'<li><a href="{safe_url}">{e(url)}</a></li>')
-            parts.append("</ul>")
+                parts.append(f'<a href="{safe_url}" style="display:block;font-size:0.78rem;'
+                              f'color:#818cf8;margin-bottom:3px">{e(url)}</a>')
+            parts.append("</div>")
+        parts.append("</div>")
     parts.append("</body></html>")
     return "".join(parts)
