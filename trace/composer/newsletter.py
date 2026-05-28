@@ -81,6 +81,10 @@ _SYSTEM_PROMPT = textwrap.dedent("""\
       * article_count — number of fresh articles available (may be 0)
       * sample_signals — their EXACT search queries or ChatGPT questions
       * debt_score > 0 — they keep returning to this without resolution (curiosity debt)
+      * related_topics — other active topics sharing vocabulary with this one.
+        Non-empty list = vocabulary bridge exists. Use this to write bridge_insight sections
+        that connect the two topics with a non-obvious insight. If related_topics is empty,
+        do NOT force a bridge — only write bridge_insight when the connection is real.
 
     ══════════════════════════════════════════════════════
     CURIOSITY FINGERPRINT (required, first section only)
@@ -272,6 +276,7 @@ def _build_user_message(ctx: AssemblyContext) -> str:
                     for a in articles
                 ],
                 "sample_signals": ctx.signal_samples.get(topic.id, []),
+                "related_topics": ctx.related_topics.get(topic.id, []),
             }
         )
     return json.dumps(payload, indent=2)

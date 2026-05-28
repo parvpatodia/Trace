@@ -45,6 +45,9 @@ class AssemblyContext(BaseModel):
     # ChatGPT questions preferred).  Used by NewsletterComposer to write in the
     # reader's own vocabulary.
     signal_samples: dict[str, list[str]] = Field(default_factory=dict)
+    # topic_id → list of other topic names sharing vocabulary — enables genuine
+    # bridge_insight sections by telling Claude which topics are semantically linked.
+    related_topics: dict[str, list[str]] = Field(default_factory=dict)
     assembled_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
@@ -119,13 +122,18 @@ class ContextWindowAssembler:
             matched.sort(key=lambda a: a.relevance_score, reverse=True)
             articles_index[t.id] = matched[: self._max_articles_per_topic]
 
-        # 3. Enforce token budget — drop lowest-scored topics first
-        while selected:
+        # 3. Enforce token budget — drop lowest-scored non-debt topics first.
+        # Debt (RECURRING) topics are protected because curiosity debt sections
+        # are the most actionable content — they exist precisely because the user
+        # keeps returning without resolution.
+        while len(selected) > 1:
             chars = _estimate_chars(selected, articles_index)
             if _chars_to_tokens(chars) <= self._token_budget:
                 break
-            dropped = selected.pop()          # already sorted desc → last = lowest
-            del articles_index[dropped.id]
+            non_debt = [t for t in selected if t.debt_score == 0]
+            to_drop = non_debt[-1] if non_debt else selected[-1]
+            selected.remove(to_drop)
+            del articles_index[to_drop.id]
 
         # 4. Compute final token estimate
         token_estimate = _chars_to_tokens(
@@ -145,10 +153,30 @@ class ContextWindowAssembler:
             if t.signal_samples
         }
 
+        # 7. Related topics: word-overlap between topic name + signal samples.
+        # Tells Claude which topics share vocabulary, enabling genuine bridge_insight
+        # sections without requiring the full embedding pipeline in the hot path.
+        topic_vocab: dict[str, set[str]] = {
+            t.id: (
+                set(t.name.lower().split())
+                | {w for s in t.signal_samples for w in s.lower().split()[:12]}
+            )
+            for t in selected
+        }
+        related_topics: dict[str, list[str]] = {
+            t.id: [
+                other.name
+                for other in selected
+                if other.id != t.id and len(topic_vocab[t.id] & topic_vocab[other.id]) >= 2
+            ]
+            for t in selected
+        }
+
         return AssemblyContext(
             selected_topics=tuple(selected),
             articles_by_topic_id=articles_index,
             debt_topics=debt_topics,
             token_estimate=token_estimate,
             signal_samples=signal_samples,
+            related_topics={tid: names for tid, names in related_topics.items() if names},
         )

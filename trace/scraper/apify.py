@@ -60,8 +60,8 @@ _TIER1_DOMAINS = frozenset([
 
 _TIER2_DOMAINS = frozenset([
     "towardsdatascience.com", "thegradient.pub", "ruder.io",
-    "lilianweng.github.io", "colah.github.io", "jalammar.github.io",
-    "sebastianraschka.com", "karpathy.github.io", "simonwillison.net",
+    "colah.github.io", "jalammar.github.io",
+    "sebastianraschka.com", "simonwillison.net",
     "eugeneyan.com", "hamel.dev", "lastweekin.ai", "importai.net",
     "theverge.com", "arstechnica.com", "wired.com", "technologyreview.com",
     "spectrum.ieee.org", "hackaday.com", "news.ycombinator.com",
@@ -113,25 +113,37 @@ def _build_query(topic_name: str, topic: Topic) -> str:
     this_year = datetime.now().year
     prev_year = this_year - 1
 
+    # Include the user's own phrasing — surfaces articles that answer their exact
+    # question rather than just matching the topic keyword.  Only add when the sample
+    # contributes ≥2 words not already in the topic name (avoids redundant noise).
+    user_phrase = ""
+    if topic.signal_samples:
+        sample = topic.signal_samples[0][:80].strip()
+        sample_words = set(sample.lower().split()) - set(topic_name.lower().split())
+        if len(sample_words) >= 2:
+            user_phrase = f' OR "{sample}"'
+
+    base = f"({quoted}{user_phrase})"
+
     if ctype == CuriosityType.DEEP or depth > 12:
         return (
-            f"{quoted} "
+            f"{base} "
             f"(research OR paper OR study OR implementation OR analysis OR architecture) "
             f"after:{prev_year}-01-01"
         )
     elif ctype == CuriosityType.RECURRING:
         return (
-            f"{quoted} "
+            f"{base} "
             f"({prev_year} OR {this_year}) "
             f"(advances OR updates OR guide OR tutorial OR explained OR deep dive)"
         )
     elif ctype == CuriosityType.SHALLOW:
         return (
-            f"{quoted} "
+            f"{base} "
             f"(explained OR introduction OR beginner OR overview OR getting started) "
             f"after:{prev_year}-01-01"
         )
-    return f"{quoted} (analysis OR guide OR explained OR research) after:{prev_year}-01-01"
+    return f"{base} (analysis OR guide OR explained OR research) after:{prev_year}-01-01"
 
 
 def _domain_of(url: str) -> str:
@@ -139,6 +151,11 @@ def _domain_of(url: str) -> str:
         return urlparse(url).netloc.lower().removeprefix("www.")
     except Exception:
         return ""
+
+
+def _domain_in_tier(domain: str, tier: frozenset[str]) -> bool:
+    """True if domain exactly matches or is a subdomain of any entry in tier."""
+    return domain in tier or any(domain.endswith("." + d) for d in tier)
 
 
 def _quality_score(item: dict[str, Any], topic_name: str) -> float:
@@ -160,9 +177,9 @@ def _quality_score(item: dict[str, Any], topic_name: str) -> float:
         return 0.1
 
     score = 0.5
-    if any(t1 in domain for t1 in _TIER1_DOMAINS):
+    if _domain_in_tier(domain, _TIER1_DOMAINS):
         score += 0.35
-    elif any(t2 in domain for t2 in _TIER2_DOMAINS):
+    elif _domain_in_tier(domain, _TIER2_DOMAINS):
         score += 0.15
 
     if _CLICKBAIT_RE.search(title):
