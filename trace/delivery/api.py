@@ -759,6 +759,119 @@ footer{text-align:center;padding:1.75rem 0 0.5rem;font-size:0.68rem;color:var(--
 /* Utils */
 .mt1{margin-top:0.5rem}.mt2{margin-top:1rem}.mb1{margin-bottom:0.5rem}.mb2{margin-bottom:1rem}
 .ml-auto{margin-left:auto}.flex{display:flex}.items-c{align-items:center}.gap2{gap:0.5rem}
+
+/* ── Enhanced Newsletter Cards ── */
+.nl-card{
+  background:rgba(255,255,255,0.025);border:1px solid var(--border);border-radius:var(--r);
+  padding:1.6rem;margin-bottom:1.25rem;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  transition:border-color 0.2s,box-shadow 0.2s;
+}
+.nl-card:hover{border-color:var(--border-md);box-shadow:0 4px 32px rgba(124,58,237,0.05)}
+.nl-card.nl-weekly_topics{border-left:3px solid #4f46e5}
+.nl-card.nl-curiosity_debt{border-left:3px solid var(--yellow)}
+.nl-card.nl-rabbit_hole{border-left:3px solid var(--green)}
+.nl-card.nl-emerging_spike{border-left:3px solid var(--cyan)}
+.nl-card.nl-bridge_insight{border-left:3px solid var(--pink)}
+.nl-card-header{display:flex;align-items:flex-start;gap:0.7rem;margin-bottom:1rem;flex-wrap:wrap}
+.nl-card-header h3{font-size:1.1rem;font-weight:700;letter-spacing:-0.015em;line-height:1.3;flex:1;min-width:200px}
+.nl-badge-lg{
+  display:inline-flex;align-items:center;gap:0.3rem;
+  font-size:0.6rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
+  padding:0.25em 0.7em;border-radius:999px;white-space:nowrap;flex-shrink:0;margin-top:0.18rem;
+}
+.nl-badge-weekly_topics{background:rgba(79,70,229,0.15);color:#818cf8;border:1px solid rgba(79,70,229,0.3)}
+.nl-badge-curiosity_debt{background:rgba(245,158,11,0.14);color:var(--yellow);border:1px solid rgba(245,158,11,0.3)}
+.nl-badge-rabbit_hole{background:rgba(16,185,129,0.13);color:var(--green);border:1px solid rgba(16,185,129,0.28)}
+.nl-badge-emerging_spike{background:rgba(34,211,238,0.12);color:var(--cyan);border:1px solid rgba(34,211,238,0.28)}
+.nl-badge-bridge_insight{background:rgba(236,72,153,0.12);color:var(--pink);border:1px solid rgba(236,72,153,0.28)}
+.nl-tldr{background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:var(--r-sm);padding:0.9rem 1rem;margin-bottom:1rem}
+.nl-tldr-lbl{font-size:0.58rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--t3);margin-bottom:0.55rem}
+.nl-tldr ul{list-style:none;padding:0;display:flex;flex-direction:column;gap:0.38rem}
+.nl-tldr li{display:flex;align-items:flex-start;gap:0.55rem;font-size:0.875rem;color:var(--t1);line-height:1.55}
+.nl-tldr li::before{content:'✦';font-size:0.6rem;color:var(--cyan);margin-top:0.3rem;flex-shrink:0}
+.nl-content p{color:var(--t2);line-height:1.8;font-size:0.9rem;margin-bottom:0.75rem}
+.nl-content p:last-child{margin-bottom:0}
+.nl-why{
+  background:rgba(124,58,237,0.07);border:1px solid rgba(124,58,237,0.2);border-radius:var(--r-sm);
+  padding:0.8rem 1rem;margin:0.9rem 0;font-size:0.84rem;color:var(--accent-l);line-height:1.65;
+}
+.nl-why-lbl{font-size:0.58rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--accent);margin-bottom:0.32rem}
+.nl-action{
+  display:flex;align-items:flex-start;gap:0.65rem;
+  background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.2);
+  border-radius:var(--r-sm);padding:0.8rem 1rem;margin:0.9rem 0;
+  font-size:0.84rem;color:var(--green);line-height:1.6;
+}
+.nl-action::before{content:'→';font-weight:700;flex-shrink:0;margin-top:0.1rem}
+.nl-conn{font-size:0.8rem;color:var(--t3);font-style:italic;border-top:1px solid var(--border);padding-top:0.7rem;margin-top:0.7rem;line-height:1.6}
+.nl-conn strong{color:var(--t2);font-style:normal}
+.nl-deep{margin-bottom:0.9rem}
+.nl-deep-lbl{font-size:0.58rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--cyan);margin-bottom:0.5rem}
+.nl-deep p{color:#b0bcd8;line-height:1.85;font-size:0.88rem;margin-bottom:0.6rem}
+.nl-deep p:last-child{margin-bottom:0}
+.nl-sources{display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:1rem}
+.nl-src-link{
+  display:inline-flex;align-items:center;gap:0.35rem;font-size:0.75rem;color:var(--accent-l);
+  background:rgba(124,58,237,0.07);border:1px solid rgba(124,58,237,0.16);
+  border-radius:999px;padding:0.22em 0.7em;text-decoration:none;transition:all 0.15s;
+  max-width:280px;overflow:hidden;
+}
+.nl-src-link:hover{background:rgba(124,58,237,0.15);color:var(--t1);border-color:rgba(124,58,237,0.35)}
+.nl-src-link span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── Progress Steps ── */
+.demo-steps{
+  display:flex;align-items:stretch;
+  background:var(--s2);border-bottom:1px solid var(--border);overflow:hidden;
+}
+.demo-step{
+  flex:1;display:flex;align-items:center;justify-content:center;gap:0.4rem;
+  padding:0.9rem 0.5rem;font-size:0.75rem;font-weight:600;
+  color:var(--t3);cursor:pointer;border:none;background:transparent;
+  transition:all 0.2s;text-align:center;line-height:1.3;
+  border-right:1px solid var(--border);font-family:var(--font);
+}
+.demo-step:last-child{border-right:none}
+.demo-step:hover{background:rgba(255,255,255,0.03);color:var(--t2)}
+.demo-step.active{background:rgba(124,58,237,0.12);color:var(--accent-l)}
+.demo-step.done{background:rgba(16,185,129,0.07);color:var(--green)}
+.step-num{
+  width:20px;height:20px;border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:0.65rem;font-weight:700;flex-shrink:0;
+  border:1px solid currentColor;opacity:0.8;
+}
+
+/* ── Terminal ── */
+.terminal-wrap{border-radius:var(--r-sm);overflow:hidden;border:1px solid var(--border-md)}
+.terminal-titlebar{
+  background:#0a0a18;border-bottom:1px solid var(--border);
+  padding:0.5rem 1rem;display:flex;align-items:center;gap:0.5rem;
+}
+.term-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.term-dot-r{background:#ff5f57}.term-dot-y{background:#febc2e}.term-dot-g{background:#28c840}
+.term-title{font-size:0.72rem;color:var(--t3);font-family:var(--mono);margin-left:auto;margin-right:auto}
+
+/* ── Graph stats bar ── */
+.graph-stats{display:flex;gap:1.5rem;padding:0.6rem 0;border-top:1px solid var(--border);margin-top:0.6rem}
+.gs-item{font-size:0.72rem;color:var(--t3)}
+.gs-item strong{color:var(--t1);font-weight:600;margin-right:0.25rem}
+
+/* ── Digest header ── */
+.digest-header{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-bottom:1rem;flex-wrap:wrap}
+.digest-header h2{font-size:1.4rem;font-weight:800;letter-spacing:-0.025em}
+.digest-date{font-size:0.72rem;color:var(--t3);font-family:var(--mono)}
+
+/* ── Upload toggle ── */
+.upload-toggle{
+  display:flex;align-items:center;gap:0.5rem;
+  font-size:0.78rem;font-weight:600;color:var(--t2);
+  cursor:pointer;padding:0.6rem 0;border-top:1px solid var(--border);
+  margin-top:0.5rem;user-select:none;list-style:none;
+}
+.upload-toggle::-webkit-details-marker{display:none}
+.upload-toggle::before{content:'▶';font-size:0.6rem;transition:transform 0.2s}
+details[open] .upload-toggle::before{transform:rotate(90deg)}
 </style>
 </head>
 <body>
@@ -771,37 +884,112 @@ footer{text-align:center;padding:1.75rem 0 0.5rem;font-size:0.68rem;color:var(--
 
 <nav>
   <div class="nav-inner">
-    <div class="nav-logo">Trace</div>
+    <div class="nav-logo">TRACE</div>
     <div class="nav-tag">Curiosity OS</div>
     <div class="nav-status">
       <div class="sdot" id="loop-dot"></div>
       <span id="loop-status-text">checking…</span>
       <span id="loop-next-run"></span>
+      <span style="background:rgba(124,58,237,0.18);border:1px solid rgba(124,58,237,0.35);color:var(--accent-l);font-size:0.6rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;padding:0.18em 0.55em;border-radius:4px;margin-left:0.5rem">DEMO MODE</span>
     </div>
   </div>
 </nav>
 
 <div class="page">
 
+<!-- ── HERO ── -->
 <section class="hero">
   <div class="hero-pill">Agent-native · MCP-first · Autonomous</div>
-  <h1 class="hero-title">Your curiosity,<br><span class="grad">always surfaced</span></h1>
-  <p class="hero-sub">Trace infers what you genuinely care about from your browser history, YouTube, and ChatGPT — then exposes a live curiosity API that any AI agent can query.</p>
+  <h1 class="hero-title">Your personal<br><span class="grad">intelligence layer</span></h1>
+  <p class="hero-sub">Smarter than TLDR. More personal than AlphaSignal. Built on your actual curiosity signals — not trending topics chosen for everyone.</p>
 </section>
 
-<!-- UPLOAD -->
-<div class="sec-hdr"><h2>Upload Your Signals</h2></div>
+<!-- ── 4-STEP DEMO FLOW ── -->
+<div class="sec-hdr"><h2>Try It Live</h2></div>
 
-<div class="privacy">
-  <strong>Your data stays local.</strong> You export your own files from Google / ChatGPT — no passwords required. Files are used once to build your curiosity profile, then <strong>deleted immediately</strong>. OAuth tokens for connected services live in Scalekit's encrypted vault, never in this server.
+<div class="card accent-border" style="padding:0">
+  <div class="demo-steps">
+    <button class="demo-step" id="step-1" onclick="seedDemo()">
+      <span class="step-num">1</span>
+      <span>Seed Profile</span>
+    </button>
+    <button class="demo-step" id="step-2" onclick="runLoopNow()">
+      <span class="step-num">2</span>
+      <span>Run Agent Loop</span>
+    </button>
+    <button class="demo-step" id="step-3" onclick="loadGraph()">
+      <span class="step-num">3</span>
+      <span>View Graph</span>
+    </button>
+    <button class="demo-step" id="step-4" onclick="checkApprovals()">
+      <span class="step-num">4</span>
+      <span>Check Approvals</span>
+    </button>
+  </div>
+
+  <div style="padding:1.25rem 1.5rem 1.5rem">
+    <div class="loop-bar" style="margin-bottom:1rem">
+      <div class="sdot" id="loop-dot-demo"></div>
+      <span id="loop-status-text-demo" style="color:var(--t2)">checking…</span>
+      <span id="loop-next-run-demo" style="color:var(--t3);font-family:var(--mono);font-size:0.67rem;margin-left:auto"></span>
+    </div>
+    <div class="terminal-wrap">
+      <div class="terminal-titlebar">
+        <div class="term-dot term-dot-r"></div>
+        <div class="term-dot term-dot-y"></div>
+        <div class="term-dot term-dot-g"></div>
+        <div class="term-title">trace-agent · autonomous loop</div>
+      </div>
+      <div class="terminal" id="demo-output">// Trace agent loop output will appear here — click step 1 above to start...
+</div>
+    </div>
+  </div>
 </div>
 
-<div class="card">
-  <div class="src-list">
-    <div class="sc" id="card-google">
-      <div class="sc-head" onclick="toggleCard('google')">
-        <div class="sc-icon">🌐</div>
-        <div class="sc-info"><div class="sc-name">Chrome / Browser History</div><div class="sc-desc">BrowserHistory.json or Google Takeout ZIP</div></div>
+<!-- ── CURIOSITY GRAPH ── -->
+<div class="card" id="graph-card" style="display:none">
+  <div class="clabel"><div class="clabel-dot" style="background:var(--cyan)"></div>Your Curiosity Graph</div>
+  <div id="d3-graph" style="width:100%;height:380px;background:var(--s2);border-radius:var(--r-sm);overflow:hidden"></div>
+  <div class="graph-stats" id="graph-stats">
+    <div class="gs-item"><strong id="gs-nodes">0</strong> topics</div>
+    <div class="gs-item"><strong id="gs-links">0</strong> signals</div>
+    <div class="gs-item"><strong id="gs-comm">0</strong> communities</div>
+  </div>
+</div>
+
+<!-- ── INTELLIGENCE DIGEST ── -->
+<div id="result" style="display:none">
+  <div style="margin:2rem 0 0.85rem">
+    <div class="digest-header">
+      <h2 class="grad" style="font-size:1.5rem">Your Intelligence Digest</h2>
+      <span class="digest-date" id="meta"></span>
+    </div>
+    <div class="card" style="padding:1.25rem 1.5rem">
+      <div class="res-eyebrow">Curiosity Brief</div>
+      <div class="res-subject" id="subject"></div>
+      <div id="curiosity-profile" class="mt1"></div>
+      <div class="act-row mt1">
+        <button class="btn btn-ghost btn-sm" onclick="downloadHtml()">↓ HTML</button>
+        <button class="btn btn-ghost btn-sm" onclick="downloadText()">↓ Text</button>
+        <span class="ml-auto" id="share-link-container"></span>
+      </div>
+    </div>
+    <div id="toc"></div>
+    <div id="sections"></div>
+    <div id="errors-container"></div>
+
+    <details style="margin-top:1.5rem">
+      <summary class="upload-toggle">Upload your own data to generate a personalised digest</summary>
+      <div style="padding:1rem 0">
+        <div class="privacy" style="margin-bottom:0.85rem">
+          <strong>Your data stays local.</strong> Files are processed once and deleted immediately. Only inferred topic names are stored — never raw browsing or conversation data.
+        </div>
+        <div class="card">
+          <div class="src-list">
+            <div class="sc" id="card-google">
+              <div class="sc-head" onclick="toggleCard('google')">
+                <div class="sc-icon">🌐</div>
+                <div class="sc-info"><div class="sc-name">Chrome / Browser History</div><div class="sc-desc">BrowserHistory.json or Google Takeout ZIP</div></div>
         <span class="sc-badge" id="status-google">Optional</span>
         <span class="sc-chev">▼</span>
       </div>
@@ -864,82 +1052,53 @@ footer{text-align:center;padding:1.75rem 0 0.5rem;font-size:0.68rem;color:var(--
         </label>
       </div>
     </div>
-  </div>
+          </div>
 
-  <div class="sig-row">
-    <span class="sig-lbl">Signal strength</span>
-    <div class="sig-track"><div class="sig-fill" id="sig-fill"></div></div>
-    <span class="sig-count" id="sig-count">0 / 3 sources</span>
-  </div>
+          <div class="sig-row">
+            <span class="sig-lbl">Signal strength</span>
+            <div class="sig-track"><div class="sig-fill" id="sig-fill"></div></div>
+            <span class="sig-count" id="sig-count">0 / 3 sources</span>
+          </div>
 
-  <div class="mt2">
-    <button class="btn btn-primary btn-full" id="gen-btn" onclick="generate()">Generate Intelligence Digest →</button>
-    <div class="loading-wrap" id="loading-wrap">
-      <div class="spinner"></div>
-      <div class="stage-msg" id="stage-msg">Preparing…</div>
-      <div class="timing-note">Large histories take 1–2 minutes — keep this tab open</div>
-    </div>
-  </div>
-</div>
-
-<!-- RESULT -->
-<div id="result">
-  <div class="sec-hdr"><h2>Intelligence Digest</h2></div>
-  <div class="card">
-    <div class="res-eyebrow">Your Curiosity Brief</div>
-    <div class="res-subject" id="subject"></div>
-    <div class="res-meta" id="meta"></div>
-    <div id="curiosity-profile" class="mt2"></div>
-    <div class="act-row mt1">
-      <button class="btn btn-ghost btn-sm" onclick="downloadHtml()">↓ HTML</button>
-      <button class="btn btn-ghost btn-sm" onclick="downloadText()">↓ Text</button>
-      <span class="ml-auto" id="share-link-container"></span>
-    </div>
-    <div id="toc"></div>
-    <div id="sections"></div>
-    <div id="errors-container"></div>
+          <div class="mt2">
+            <button class="btn btn-primary btn-full" id="gen-btn" onclick="generate()">Generate Intelligence Digest →</button>
+            <div class="loading-wrap" id="loading-wrap">
+              <div class="spinner"></div>
+              <div class="stage-msg" id="stage-msg">Preparing…</div>
+              <div class="timing-note">Large histories take 1–2 minutes — keep this tab open</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
   </div>
 </div>
 
-<!-- GRAPH -->
-<div class="card" id="graph-card">
-  <div class="clabel"><div class="clabel-dot" style="background:var(--cyan)"></div>Curiosity Graph · Semantic topic network</div>
-  <div id="d3-graph"></div>
-</div>
-
-<!-- AUTONOMOUS LOOP DEMO -->
-<div class="sec-hdr"><h2>Autonomous Agent Loop</h2></div>
-
-<div class="card accent-border">
-  <div class="clabel"><div class="clabel-dot" style="background:var(--accent-l)"></div>Demo Control Panel</div>
-  <p style="font-size:0.8rem;color:var(--t2);margin-bottom:1.1rem;line-height:1.65">
-    Trace runs three loops every 30 s in DEMO_MODE: <strong style="color:var(--t1)">poll Gmail signals → scrape fresh articles → detect patterns → dispatch AI actions</strong>. Use the buttons below to trigger a manual cycle and watch the agent reason in real-time.
-  </p>
-
-  <div class="loop-bar">
-    <div class="sdot" id="loop-dot-demo"></div>
-    <span id="loop-status-text-demo" style="color:var(--t2)">checking…</span>
-    <span id="loop-next-run-demo" style="color:var(--t3);font-family:var(--mono);font-size:0.67rem;margin-left:auto"></span>
-  </div>
-
-  <div class="demo-btns">
-    <button class="btn btn-v btn-sm" onclick="seedDemo()">1. Seed Demo Profile</button>
-    <button class="btn btn-primary btn-sm" onclick="runLoopNow()">2. Run Autonomous Loop ▶</button>
-    <button class="btn btn-c btn-sm" onclick="loadGraph()">3. Render Curiosity Graph</button>
-    <button class="btn btn-ghost btn-sm" onclick="checkApprovals()">4. Check Pending Approvals</button>
-  </div>
-
-  <div class="terminal" id="demo-output">// Trace agent loop output will appear here...
-</div>
-</div>
-
-<!-- PENDING APPROVALS -->
+<!-- ── PENDING APPROVALS ── -->
 <div class="card" id="approvals-card" style="display:none">
-  <div class="clabel"><div class="clabel-dot" style="background:var(--pink)"></div>Pending Actions — Tier B (require your approval)</div>
+  <div class="clabel"><div class="clabel-dot" style="background:var(--pink)"></div>Agent Actions Requiring Your Approval</div>
   <p style="font-size:0.77rem;color:var(--t2);margin-bottom:0.8rem;line-height:1.6">
     These drafts were prepared by the agent. Gmail drafts are only created after you approve. Reddit posts are never auto-published.
   </p>
   <div id="approvals-list"></div>
+</div>
+
+<!-- ── CONNECT SERVICES ── -->
+<div class="sec-hdr"><h2>Connect Services</h2></div>
+<div class="card">
+  <div class="clabel"><div class="clabel-dot" style="background:var(--yellow)"></div>Scalekit Token Vault · Secure OAuth for agent actions</div>
+  <p style="font-size:0.78rem;color:var(--t2);margin-bottom:0.9rem;line-height:1.65">Your OAuth tokens live in <strong style="color:var(--t1)">Scalekit's encrypted vault</strong> — never in Trace's env vars or memory. Once connected, the autonomous agent can act on your behalf.</p>
+  <div class="cn-grid">
+    <div class="cn-card" style="border-color:rgba(124,58,237,0.28)">
+      <div class="cn-name">📧 Gmail</div>
+      <div class="cn-desc">Read newsletter subjects → subscription-debt signals</div>
+      <div class="cn-row"><button class="btn btn-v btn-sm" onclick="connectService('gmail')">Connect</button><span class="cn-st" id="gmail-status"></span></div>
+    </div>
+    <div class="cn-card"><div class="cn-name">📝 Notion</div><div class="cn-desc">Auto-save emerging topics as pages (Tier A)</div><div class="cn-row"><button class="btn btn-ghost btn-sm" onclick="connectService('notion-akG2REQU')">Connect</button><span class="cn-st" id="notion-akG2REQU-status"></span></div></div>
+    <div class="cn-card"><div class="cn-name">📅 Calendar</div><div class="cn-desc">Schedule deep-dive sessions (Tier A)</div><div class="cn-row"><button class="btn btn-ghost btn-sm" onclick="connectService('googlecalendar-fe75NXhO')">Connect</button><span class="cn-st" id="googlecalendar-fe75NXhO-status"></span></div></div>
+    <div class="cn-card"><div class="cn-name">💬 Slack</div><div class="cn-desc">DM when a pattern triggers (Tier A)</div><div class="cn-row"><button class="btn btn-ghost btn-sm" onclick="connectService('slack-RLnbqcmP')">Connect</button><span class="cn-st" id="slack-RLnbqcmP-status"></span></div></div>
+    <div class="cn-card"><div class="cn-name">🟠 Reddit</div><div class="cn-desc">Prepare bridge-topic drafts (Tier B, never auto-posts)</div><div class="cn-row"><button class="btn btn-ghost btn-sm" onclick="connectService('reddit')">Connect</button><span class="cn-st" id="reddit-status"></span></div></div>
+  </div>
 </div>
 
 <!-- MCP -->
@@ -962,24 +1121,6 @@ footer{text-align:center;padding:1.75rem 0 0.5rem;font-size:0.68rem;color:var(--
     <div class="tool-card"><div class="tool-lbl">Tool</div><div class="tool-name">get_emerging_interests</div></div>
     <div class="tool-card"><div class="tool-lbl">Tool</div><div class="tool-name">track_signal</div></div>
     <div class="tool-card"><div class="tool-lbl">Tool</div><div class="tool-name">get_topic_neighbors</div></div>
-  </div>
-</div>
-
-<!-- CONNECT SERVICES -->
-<div class="sec-hdr"><h2>Connect Services</h2></div>
-<div class="card">
-  <div class="clabel"><div class="clabel-dot" style="background:var(--yellow)"></div>Scalekit Token Vault · Secure OAuth for agent actions</div>
-  <p style="font-size:0.78rem;color:var(--t2);margin-bottom:0.9rem;line-height:1.65">Your OAuth tokens live in <strong style="color:var(--t1)">Scalekit's encrypted vault</strong> — never in Trace's env vars or memory. Once connected, the autonomous agent can act on your behalf.</p>
-  <div class="cn-grid">
-    <div class="cn-card" style="border-color:rgba(124,58,237,0.28)">
-      <div class="cn-name">📧 Gmail</div>
-      <div class="cn-desc">Read newsletter subjects → subscription-debt signals</div>
-      <div class="cn-row"><button class="btn btn-v btn-sm" onclick="connectService('gmail')">Connect</button><span class="cn-st" id="gmail-status"></span></div>
-    </div>
-    <div class="cn-card"><div class="cn-name">📝 Notion</div><div class="cn-desc">Auto-save emerging topics as pages (Tier A)</div><div class="cn-row"><button class="btn btn-ghost btn-sm" onclick="connectService('notion-akG2REQU')">Connect</button><span class="cn-st" id="notion-akG2REQU-status"></span></div></div>
-    <div class="cn-card"><div class="cn-name">📅 Calendar</div><div class="cn-desc">Schedule deep-dive sessions (Tier A)</div><div class="cn-row"><button class="btn btn-ghost btn-sm" onclick="connectService('googlecalendar-fe75NXhO')">Connect</button><span class="cn-st" id="googlecalendar-fe75NXhO-status"></span></div></div>
-    <div class="cn-card"><div class="cn-name">💬 Slack</div><div class="cn-desc">DM when a pattern triggers (Tier A)</div><div class="cn-row"><button class="btn btn-ghost btn-sm" onclick="connectService('slack-RLnbqcmP')">Connect</button><span class="cn-st" id="slack-RLnbqcmP-status"></span></div></div>
-    <div class="cn-card"><div class="cn-name">🟠 Reddit</div><div class="cn-desc">Prepare bridge-topic drafts (Tier B, never auto-posts)</div><div class="cn-row"><button class="btn btn-ghost btn-sm" onclick="connectService('reddit')">Connect</button><span class="cn-st" id="reddit-status"></span></div></div>
   </div>
 </div>
 
@@ -1027,14 +1168,15 @@ function fileChosen(type) {
 
 function updateSigBar() {
   const types = ['google','youtube','chatgpt'];
-  const count = types.filter(t => document.getElementById('file-'+t).files.length > 0).length;
+  const count = types.filter(t => { const el=document.getElementById('file-'+t); return el && el.files.length > 0; }).length;
   fileCount = count;
-  document.getElementById('sig-fill').style.width = (count / 3 * 100) + '%';
-  document.getElementById('sig-count').textContent = count + ' / 3 sources';
+  const sf = document.getElementById('sig-fill'); if (sf) sf.style.width = (count / 3 * 100) + '%';
+  const sc2 = document.getElementById('sig-count'); if (sc2) sc2.textContent = count + ' / 3 sources';
 }
 
 ['google','youtube','chatgpt'].forEach(t => {
   const el = document.getElementById('drop-' + t);
+  if (!el) return;
   el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('over'); });
   el.addEventListener('dragleave', () => el.classList.remove('over'));
   el.addEventListener('drop', e => {
@@ -1043,7 +1185,7 @@ function updateSigBar() {
     if (dt.files.length) {
       if (t === 'google') {
         try { const dta = new DataTransfer(); Array.from(dt.files).forEach(f => dta.items.add(f)); document.getElementById('file-'+t).files = dta.files; }
-        catch { document.getElementById('file-'+t).files = dt.files; }
+        catch(ex) { document.getElementById('file-'+t).files = dt.files; }
       } else { document.getElementById('file-'+t).files = dt.files; }
       fileChosen(t);
     }
@@ -1064,30 +1206,35 @@ let stageIdx = 0, stageTimer;
 
 function tickStage() {
   if (stageIdx < STAGE_MSGS.length) {
-    document.getElementById('stage-msg').textContent = STAGE_MSGS[stageIdx];
+    const el = document.getElementById('stage-msg');
+    if (el) el.textContent = STAGE_MSGS[stageIdx];
     stageTimer = setTimeout(tickStage, STAGE_DELAYS[stageIdx] || 15000);
     stageIdx++;
   } else {
-    document.getElementById('stage-msg').textContent = 'Still processing — complex histories can take a few minutes…';
+    const el = document.getElementById('stage-msg');
+    if (el) el.textContent = 'Still processing — complex histories can take a few minutes…';
     stageTimer = setTimeout(tickStage, 20000);
   }
 }
 function stopStages() { clearTimeout(stageTimer); stageIdx = 0; }
 
 function setLoading(on) {
-  document.getElementById('gen-btn').style.display = on ? 'none' : 'block';
+  const btn = document.getElementById('gen-btn');
+  if (btn) btn.style.display = on ? 'none' : 'block';
   const w = document.getElementById('loading-wrap');
+  if (!w) return;
   w.style.display = on ? 'flex' : 'none';
   if (on) w.style.flexDirection = 'column';
-  if (!on) document.getElementById('stage-msg').className = 'stage-msg';
+  if (!on) { const sm = document.getElementById('stage-msg'); if (sm) sm.className = 'stage-msg'; }
 }
 
 function setError(msg) {
   const el = document.getElementById('stage-msg');
-  el.textContent = msg; el.className = 'stage-msg err';
-  document.getElementById('loading-wrap').style.display = 'flex';
-  document.getElementById('loading-wrap').style.flexDirection = 'column';
-  document.getElementById('gen-btn').style.display = 'block';
+  if (el) { el.textContent = msg; el.className = 'stage-msg err'; }
+  const w = document.getElementById('loading-wrap');
+  if (w) { w.style.display = 'flex'; w.style.flexDirection = 'column'; }
+  const btn = document.getElementById('gen-btn');
+  if (btn) btn.style.display = 'block';
 }
 
 function esc(s) {
@@ -1104,9 +1251,12 @@ function sourceBadge(url) {
   return '<span class="spill sp-web">Web</span>';
 }
 function badgeClass(type) { return 'nl-badge badge-' + (type || 'weekly_topics'); }
-function badgeLabel(type) { return {weekly_topics:'This Week',curiosity_debt:'Curiosity Debt',rabbit_hole:'Rabbit Hole'}[type] || type; }
+function badgeLabel(type) {
+  const map = {weekly_topics:'This Week',curiosity_debt:'Curiosity Debt',rabbit_hole:'Rabbit Hole',emerging_spike:'Emerging Spike',bridge_insight:'Bridge Insight'};
+  return map[type] || type;
+}
 function fmtContent(text) {
-  const parts = String(text).split('\\n\\n').map(p => p.trim()).filter(Boolean);
+  const parts = String(text).split(/\n\n+/).map(p => p.trim()).filter(Boolean);
   return parts.length ? parts.map(p => '<p>'+esc(p)+'</p>').join('') : '<p>'+esc(String(text).trim())+'</p>';
 }
 function downloadBlob(content, filename, mime) {
@@ -1170,35 +1320,56 @@ function renderNewsletter(data) {
   } else tocEl.innerHTML = '';
 
   const secEl = document.getElementById('sections');
-  secEl.innerHTML = '';
-  data.sections.forEach((s, i) => {
-    const div = document.createElement('div');
-    div.className = 'nls'; div.id = 'section-'+i;
-    const urls = (s.source_urls||[]).map(u => `<a href="${esc(safeHref(u))}" target="_blank" rel="noopener noreferrer">${sourceBadge(u)}<span class="slink">${esc(u)}</span></a>`).join('');
-
-    // Rich fields — only render if populated
-    const tldrHtml = s.tldr?.length ? `<div class="nl-tldr"><div class="nl-tldr-lbl">TL;DR</div><ul>${s.tldr.map(b=>`<li>${esc(b)}</li>`).join('')}</ul></div>` : '';
-    const insightHtml = s.deep_insight ? `<div class="nl-insight"><span class="nl-insight-icon">◈</span><div>${fmtContent(s.deep_insight)}</div></div>` : '';
-    const whyHtml = s.why_this_matters ? `<div class="nl-why-matters"><strong>Why now:</strong> ${esc(s.why_this_matters)}</div>` : '';
-    const actionHtml = s.action_item ? `<div class="nl-action"><span class="nl-action-icon">→</span> <strong>Try this:</strong> ${esc(s.action_item)}</div>` : '';
-    const connHtml = s.connection ? `<div class="nl-conn"><span class="nl-conn-icon">⇢</span> <em>${esc(s.connection)}</em></div>` : '';
-
-    div.innerHTML = `<span class="${badgeClass(s.section_type)}">${esc(badgeLabel(s.section_type))}</span>
-      <h3>${esc(s.title)}</h3>
-      ${tldrHtml}
-      <div class="nl-body">${fmtContent(s.content)}</div>
-      ${insightHtml}${whyHtml}${actionHtml}${connHtml}
-      ${urls?'<div class="srcs">'+urls+'</div>':''}
-      <details class="why"><summary>Why this section?</summary><div class="why-body">${esc(s.audit_reasoning)}</div></details>`;
-    secEl.appendChild(div);
-  });
+  if (secEl) {
+    secEl.innerHTML = '';
+    data.sections.forEach((s, i) => {
+      const div = document.createElement('div');
+      div.id = 'section-'+i;
+      div.className = 'nl-card nl-' + (s.section_type || 'weekly_topics');
+      const badgeTypeClass = 'nl-badge-lg nl-badge-' + (s.section_type || 'weekly_topics');
+      let html = '<div class="nl-card-header"><span class="'+badgeTypeClass+'">'+esc(badgeLabel(s.section_type))+'</span><h3>'+esc(s.title)+'</h3></div>';
+      if (s.tldr && s.tldr.length > 0) {
+        html += '<div class="nl-tldr"><div class="nl-tldr-lbl">TL;DR</div><ul>';
+        s.tldr.forEach(b => { html += '<li>'+esc(b)+'</li>'; });
+        html += '</ul></div>';
+      }
+      html += '<div class="nl-content">'+fmtContent(s.content)+'</div>';
+      if (s.deep_insight && s.deep_insight.trim()) {
+        html += '<div class="nl-deep"><div class="nl-deep-lbl">Deep Insight</div>';
+        s.deep_insight.split(/\n\n+/).map(p=>p.trim()).filter(Boolean).forEach(p=>{ html += '<p>'+esc(p)+'</p>'; });
+        html += '</div>';
+      }
+      if (s.why_this_matters && s.why_this_matters.trim()) {
+        html += '<div class="nl-why"><div class="nl-why-lbl">Why this matters now</div>'+esc(s.why_this_matters)+'</div>';
+      }
+      if (s.action_item && s.action_item.trim()) {
+        html += '<div class="nl-action">'+esc(s.action_item)+'</div>';
+      }
+      if (s.connection && s.connection.trim()) {
+        html += '<div class="nl-conn"><strong>Connection:</strong> '+esc(s.connection)+'</div>';
+      }
+      const urls2 = (s.source_urls||[]);
+      if (urls2.length) {
+        html += '<div class="nl-sources">';
+        urls2.forEach(u => {
+          html += '<a class="nl-src-link" href="'+esc(safeHref(u))+'" target="_blank" rel="noopener noreferrer">'+sourceBadge(u)+'<span>'+esc(u)+'</span></a>';
+        });
+        html += '</div>';
+      }
+      html += '<details class="why"><summary>Why this section?</summary><div class="why-body">'+esc(s.audit_reasoning)+'</div></details>';
+      div.innerHTML = html;
+      secEl.appendChild(div);
+    });
+  }
 
   const errBox = document.getElementById('errors-container');
-  errBox.innerHTML = (data.errors?.length) ? `<div class="err-box"><h4>Non-fatal warnings (${data.errors.length})</h4><ul>${data.errors.map(e=>'<li>'+esc(e)+'</li>').join('')}</ul></div>` : '';
+  if (errBox) errBox.innerHTML = (data.errors?.length) ? '<div class="err-box"><h4>Non-fatal warnings ('+data.errors.length+')</h4><ul>'+data.errors.map(e=>'<li>'+esc(e)+'</li>').join('')+'</ul></div>' : '';
 
   const resultEl = document.getElementById('result');
-  resultEl.style.display = 'block';
-  resultEl.scrollIntoView({behavior:'smooth'});
+  if (resultEl) {
+    resultEl.style.display = 'block';
+    resultEl.scrollIntoView({behavior:'smooth'});
+  }
 }
 
 async function generate() {
@@ -1218,21 +1389,24 @@ async function generate() {
     for (const f of gf) {
       const fd = new FormData(); fd.append('file',f); fd.append('file_type','history');
       const r = await fetch('/upload',{method:'POST',body:fd});
-      if (!r.ok) { const e=await r.json(); throw new Error(e.detail||'Upload failed: '+f.name); }
-      histIds.push((await r.json()).upload_id);
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail||'Upload failed: '+f.name);
+      histIds.push(data.upload_id);
     }
     let ytId=null, cgId=null;
     if (yf[0]) {
       const fd=new FormData(); fd.append('file',yf[0]); fd.append('file_type','youtube');
       const r=await fetch('/upload',{method:'POST',body:fd});
-      if (!r.ok) { const e=await r.json(); throw new Error(e.detail||'Upload failed'); }
-      ytId=(await r.json()).upload_id;
+      const data=await r.json();
+      if (!r.ok) throw new Error(data.detail||'Upload failed');
+      ytId=data.upload_id;
     }
     if (cf[0]) {
       const fd=new FormData(); fd.append('file',cf[0]); fd.append('file_type','chatgpt');
       const r=await fetch('/upload',{method:'POST',body:fd});
-      if (!r.ok) { const e=await r.json(); throw new Error(e.detail||'Upload failed'); }
-      cgId=(await r.json()).upload_id;
+      const data=await r.json();
+      if (!r.ok) throw new Error(data.detail||'Upload failed');
+      cgId=data.upload_id;
     }
     const body={};
     if (histIds.length) body.history_upload_ids=histIds;
@@ -1241,7 +1415,7 @@ async function generate() {
     const r2=await fetch('/newsletter/from-upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if (!r2.ok) {
       let msg='Generation failed';
-      try{const ej=await r2.json();msg=ej.detail||msg;}catch{try{msg=await r2.text();}catch{}}
+      try{const ej=await r2.json();msg=ej.detail||msg;}catch(ex){try{msg=await r2.text();}catch(ex2){}}
       throw new Error(msg);
     }
     stopStages(); setLoading(false); renderNewsletter(await r2.json());
@@ -1278,22 +1452,35 @@ async function _fetchJson(url, opts) {
   return r.json();
 }
 
+function _setStep(n, state) {
+  const el = document.getElementById('step-'+n);
+  if (!el) return;
+  el.classList.remove('active','done');
+  if (state) el.classList.add(state);
+}
+
 async function seedDemo() {
+  _setStep(1,'active');
   demoLog('Seeding demo profile with ML/robotics curiosity graph...');
   try {
     const d = await _fetchJson('/demo/seed',{method:'POST'});
     demoLog('✅ Seeded '+d.topic_count+' topics | profile='+d.profile_id);
     demoLog('   Topics: '+(d.topics||[]).join(', '));
-    demoLog('');
-    demoLog('▶ Auto-advancing → Run Autonomous Loop...');
-    setTimeout(runLoopNow, 600);
-  } catch(e) { demoLog('❌ Seed failed: '+e.message); }
+    _setStep(1,'done');
+    /* Auto-advance: load graph after seed */
+    await loadGraph();
+  } catch(e) {
+    demoLog('❌ Seed failed: '+e.message);
+    _setStep(1,'');
+  }
 }
 
 async function runLoopNow() {
+  _setStep(2,'active');
   demoLog('▶ Running pattern detection + autonomous dispatch...');
-  const btn = document.querySelector('[onclick="runLoopNow()"]');
-  if (btn) { btn.disabled=true; btn.textContent='⏳ Running...'; }
+  const btn = document.getElementById('step-2');
+  const origHtml = btn ? btn.innerHTML : '';
+  if (btn) btn.innerHTML = '<span class="step-num">2</span><span>⏳ Running...</span>';
   try {
     const d = await _fetchJson('/demo/run-detect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile_id:'demo'})});
     demoLog('🔍 Patterns: '+d.patterns_detected+' | Actions: '+d.actions_dispatched);
@@ -1306,32 +1493,56 @@ async function runLoopNow() {
         demoLog('  '+icon+' '+(a.action_type||a.via||s)+(a.topic||a.title?' — '+(a.topic||(a.title||'').slice(0,40)):''));
       });
     }
-    setTimeout(checkApprovals,300);
-    setTimeout(loadGraph, 900);
-  } catch(e) { demoLog('❌ Detect failed: '+e.message+' — seed the demo profile first?'); }
-  finally { if (btn) { btn.disabled=false; btn.textContent='2. Run Autonomous Loop ▶'; } }
+    _setStep(2,'done');
+    /* Auto-advance: check approvals */
+    setTimeout(checkApprovals, 300);
+  } catch(e) {
+    demoLog('❌ Detect failed: '+e.message+' — seed the demo profile first?');
+    _setStep(2,'');
+  } finally {
+    if (btn) btn.innerHTML = origHtml;
+  }
 }
 
 async function loadGraph() {
+  _setStep(3,'active');
   demoLog('Loading curiosity graph...');
   try {
     let d = await _fetchJson('/graph.json?profile_id=demo');
     if (!d.nodes?.length) { demoLog('Demo empty — trying default...'); d = await _fetchJson('/graph.json?profile_id=default'); }
-    if (!d.nodes?.length) { demoLog('⚠️ No graph data. Seed the demo profile first.'); return; }
+    if (!d.nodes?.length) { demoLog('⚠️ No graph data. Seed the demo profile first.'); _setStep(3,''); return; }
     const s=d.stats||{};
     demoLog('📊 Graph: '+(s.node_count||0)+' nodes · '+(s.link_count||0)+' edges · '+(s.community_count||0)+' communities');
+    const nodesEl=document.getElementById('gs-nodes'); if(nodesEl) nodesEl.textContent=s.node_count||0;
+    const linksEl=document.getElementById('gs-links'); if(linksEl) linksEl.textContent=s.link_count||0;
+    const commEl=document.getElementById('gs-comm'); if(commEl) commEl.textContent=s.community_count||0;
     const card=document.getElementById('graph-card');
-    card.style.display='';
+    if (card) card.style.display='';
     requestAnimationFrame(() => { try { renderD3Graph(d); } catch(err) { demoLog('❌ Graph render error: '+err.message); } });
-  } catch(e) { demoLog('❌ Graph load failed: '+e.message); }
+    _setStep(3,'done');
+  } catch(e) {
+    demoLog('❌ Graph load failed: '+e.message);
+    _setStep(3,'');
+  }
 }
 
 async function checkApprovals() {
+  _setStep(4,'active');
   try {
     const d = await _fetchJson('/approvals?profile_id=demo');
     demoLog('📬 Pending approvals: '+d.count+(d.count===0?' — run the loop first':''));
-    if (d.count > 0) { document.getElementById('approvals-card').style.display=''; renderApprovals(d.pending); }
-  } catch(e) { demoLog('❌ Approvals check failed: '+e.message); }
+    if (d.count > 0) {
+      const card=document.getElementById('approvals-card');
+      if (card) card.style.display='';
+      renderApprovals(d.pending);
+      _setStep(4,'done');
+    } else {
+      _setStep(4,'');
+    }
+  } catch(e) {
+    demoLog('❌ Approvals check failed: '+e.message);
+    _setStep(4,'');
+  }
 }
 
 function _syncDot(data, dotId, textId, nextId) {
