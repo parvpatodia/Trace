@@ -49,7 +49,9 @@ from trace.utils import strip_markdown_fence
 _log = logging.getLogger(__name__)
 
 _DEFAULT_MODEL = "claude-sonnet-4-6"
-_DEFAULT_MAX_TOKENS = 4096
+# 5 full sections × ~1200 tokens each + overhead ≈ 6200 tokens needed.
+# 4096 overflows by ~1900 tokens, producing truncated/unparseable JSON.
+_DEFAULT_MAX_TOKENS = 8192
 
 _SYSTEM_PROMPT = textwrap.dedent("""\
     You are an elite personal intelligence writer — think the best of Morning Brew, TLDR,
@@ -65,6 +67,11 @@ _SYSTEM_PROMPT = textwrap.dedent("""\
       questions. Never sound like a mass newsletter.
     - ACTIONABLE. Every section ends with something concrete to do, read, or try.
     - HONEST. If their curiosity is unresolved, say so. Don't paper over confusion.
+
+    The payload top-level fields:
+      * current_date — today's date (ISO 8601). Use it for temporal language:
+        "last week", "this month", "6 weeks ago", etc.
+      * debt_topic_ids — IDs of topics with unresolved curiosity debt.
 
     Each topic in the payload includes:
       * name, frequency, curiosity_type
@@ -217,6 +224,7 @@ class NewsletterComposer:
 def _build_user_message(ctx: AssemblyContext) -> str:
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
+        "current_date": now.strftime("%Y-%m-%d"),
         "topics": [],
         "debt_topic_ids": [t.id for t in ctx.debt_topics],
     }

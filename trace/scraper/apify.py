@@ -42,12 +42,20 @@ _DEFAULT_ACTOR = "apify/rag-web-browser"
 
 # ── Source quality tiers ──────────────────────────────────────────────────────
 _TIER1_DOMAINS = frozenset([
-    "arxiv.org", "nature.com", "science.org", "cell.com", "sciencedirect.com",
-    "openai.com", "deepmind.google", "anthropic.com", "research.google",
-    "huggingface.co", "github.com", "github.blog", "papers.nips.cc",
-    "proceedings.mlr.press", "distill.pub", "ml.berkeley.edu",
-    "ai.googleblog.com", "ai.meta.com", "blog.research.google",
-    "pair.withgoogle.com", "jmlr.org", "iclr.cc", "neurips.cc",
+    # Major research labs
+    "arxiv.org", "ar5iv.org", "openreview.net",
+    "nature.com", "science.org", "cell.com", "sciencedirect.com",
+    "openai.com", "deepmind.google", "deepmind.com", "anthropic.com",
+    "research.google", "blog.google", "ai.googleblog.com",
+    "ai.meta.com", "blog.research.google", "pair.withgoogle.com",
+    # Code + papers
+    "huggingface.co", "github.com", "github.blog",
+    "paperswithcode.com", "papers.nips.cc",
+    "proceedings.mlr.press", "distill.pub", "jmlr.org",
+    "iclr.cc", "neurips.cc", "icml.cc",
+    # High-signal practitioner blogs
+    "ml.berkeley.edu", "bair.berkeley.edu", "fast.ai",
+    "karpathy.github.io", "lilianweng.github.io",
 ])
 
 _TIER2_DOMAINS = frozenset([
@@ -102,26 +110,28 @@ def _build_query(topic_name: str, topic: Topic) -> str:
     quoted = f'"{topic_name}"' if " " in topic_name else topic_name
     ctype = topic.curiosity_type
     depth = getattr(topic, "depth_score", 0.0)
+    this_year = datetime.now().year
+    prev_year = this_year - 1
 
     if ctype == CuriosityType.DEEP or depth > 12:
         return (
             f"{quoted} "
             f"(research OR paper OR study OR implementation OR analysis OR architecture) "
-            f"after:2024-01-01"
+            f"after:{prev_year}-01-01"
         )
     elif ctype == CuriosityType.RECURRING:
         return (
             f"{quoted} "
-            f"(2024 OR 2025) "
+            f"({prev_year} OR {this_year}) "
             f"(advances OR updates OR guide OR tutorial OR explained OR deep dive)"
         )
     elif ctype == CuriosityType.SHALLOW:
         return (
             f"{quoted} "
             f"(explained OR introduction OR beginner OR overview OR getting started) "
-            f"after:2023-01-01"
+            f"after:{prev_year}-01-01"
         )
-    return f"{quoted} (analysis OR guide OR explained OR research) after:2024-01-01"
+    return f"{quoted} (analysis OR guide OR explained OR research) after:{prev_year}-01-01"
 
 
 def _domain_of(url: str) -> str:
