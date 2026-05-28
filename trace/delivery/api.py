@@ -80,6 +80,12 @@ class SectionResponse(BaseModel):
     content: str
     source_urls: list[str]
     audit_reasoning: str
+    # Rich fields from Claude — these power the TLDR/insight/action cards in the UI
+    tldr: list[str] = []
+    deep_insight: str = ""
+    why_this_matters: str = ""
+    action_item: str = ""
+    connection: str = ""
 
 
 class GenerateResponse(BaseModel):
@@ -910,6 +916,10 @@ details[open] .upload-toggle::before{transform:rotate(90deg)}
       <span class="step-num">4</span>
       <span>Check Approvals</span>
     </button>
+    <button class="demo-step" id="step-5" onclick="generateDemoNewsletter()" style="background:linear-gradient(135deg,rgba(16,185,129,0.15),rgba(8,145,178,0.15));border-color:rgba(16,185,129,0.4)">
+      <span class="step-num" style="background:linear-gradient(135deg,#10b981,#0891b2);-webkit-background-clip:text;-webkit-text-fill-color:transparent">5</span>
+      <span>Generate Digest ✦</span>
+    </button>
   </div>
 
   <div style="padding:1.25rem 1.5rem 1.5rem">
@@ -1443,6 +1453,24 @@ function _setStep(n, state) {
   if (state) el.classList.add(state);
 }
 
+async function generateDemoNewsletter() {
+  const btn = document.getElementById('step-5');
+  if (btn) { btn.disabled = true; btn.querySelector('span:last-child').textContent = '⏳ Generating…'; }
+  demoLog('✦ Generating Intelligence Digest from demo profile…');
+  demoLog('  (Claude will write from training knowledge if Apify is unconfigured)');
+  try {
+    const data = await _fetchJson('/demo/newsletter', {method: 'POST'});
+    demoLog('✅ Newsletter generated: "' + data.subject_line + '"');
+    demoLog('   Sections: ' + data.sections.length + ' · Topics: ' + (data.topic_names||[]).join(', '));
+    renderNewsletter(data);
+    document.getElementById('result').scrollIntoView({behavior: 'smooth'});
+  } catch(e) {
+    demoLog('❌ Newsletter failed: ' + e.message + ' — seed the demo profile first?');
+  } finally {
+    if (btn) { btn.disabled = false; btn.querySelector('span:last-child').textContent = 'Generate Digest ✦'; }
+  }
+}
+
 async function seedDemo() {
   _setStep(1,'active');
   demoLog('Seeding demo profile with ML/robotics curiosity graph...');
@@ -1478,8 +1506,11 @@ async function runLoopNow() {
       });
     }
     _setStep(2,'done');
-    /* Auto-advance: check approvals */
+    /* Auto-advance: check approvals + load graph */
     setTimeout(checkApprovals, 300);
+    setTimeout(loadGraph, 900);
+    demoLog('');
+    demoLog('→ Step 5: click "Generate Digest ✦" to produce your personalized newsletter');
   } catch(e) {
     demoLog('❌ Detect failed: '+e.message+' — seed the demo profile first?');
     _setStep(2,'');
@@ -2046,6 +2077,11 @@ async def generate_from_upload(
                 content=s.content,
                 source_urls=s.source_urls,
                 audit_reasoning=s.audit_reasoning,
+                tldr=s.tldr,
+                deep_insight=s.deep_insight,
+                why_this_matters=s.why_this_matters,
+                action_item=s.action_item,
+                connection=s.connection,
             )
             for s in newsletter.sections
         ],
@@ -2096,6 +2132,11 @@ async def generate_newsletter(
                 content=s.content,
                 source_urls=s.source_urls,
                 audit_reasoning=s.audit_reasoning,
+                tldr=s.tldr,
+                deep_insight=s.deep_insight,
+                why_this_matters=s.why_this_matters,
+                action_item=s.action_item,
+                connection=s.connection,
             )
             for s in newsletter.sections
         ],
@@ -2179,6 +2220,11 @@ async def regenerate_newsletter(
                 content=s.content,
                 source_urls=s.source_urls,
                 audit_reasoning=s.audit_reasoning,
+                tldr=s.tldr,
+                deep_insight=s.deep_insight,
+                why_this_matters=s.why_this_matters,
+                action_item=s.action_item,
+                connection=s.connection,
             )
             for s in newsletter.sections
         ],
@@ -2484,6 +2530,74 @@ async def demo_seed() -> dict[str, Any]:
     """
     from trace.agent.demo_seed import inject_demo_seed
     return await inject_demo_seed()
+
+
+@app.post("/demo/newsletter", response_model=GenerateResponse)
+async def demo_generate_newsletter() -> GenerateResponse:
+    """Generate a personalized newsletter from the seeded demo curiosity profile.
+
+    No file upload required. Runs pipeline stages 3-5 on the demo graph:
+      scrape fresh articles (Apify rag-web-browser) → assemble context →
+      compose newsletter (Claude with curiosity fingerprint + rich fields).
+
+    If no Apify token is configured, Claude writes from training knowledge —
+    the personalization and curiosity fingerprint still work perfectly.
+    """
+    from trace.agent.demo_seed import _SEED_PROFILE_ID
+
+    graph = _PROFILE_CACHE.get(_SEED_PROFILE_ID)
+    if graph is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Demo profile not seeded. Call POST /demo/seed first.",
+        )
+
+    pipeline = _build_pipeline_from_settings()
+    if pipeline is None:
+        raise HTTPException(status_code=503, detail="Pipeline error — check ANTHROPIC_API_KEY")
+
+    try:
+        result: PipelineResult = await pipeline.run_from_graph(graph=graph)
+    except PipelineError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        _log.exception("Demo newsletter generation failed")
+        raise HTTPException(status_code=503, detail=f"Pipeline error: {e}") from e
+
+    newsletter = result.newsletter
+    sorted_topics = sorted(graph.topics, key=lambda t: t.composite_score(), reverse=True)
+    raw_scores = [t.composite_score() for t in sorted_topics]
+    max_score = max(raw_scores) if raw_scores else 1.0
+    profile_id = _store_profile(graph)
+    response = GenerateResponse(
+        id=newsletter.id,
+        subject_line=newsletter.subject_line,
+        sections=[
+            SectionResponse(
+                title=s.title,
+                section_type=s.section_type,
+                content=s.content,
+                source_urls=s.source_urls,
+                audit_reasoning=s.audit_reasoning,
+                tldr=s.tldr,
+                deep_insight=s.deep_insight,
+                why_this_matters=s.why_this_matters,
+                action_item=s.action_item,
+                connection=s.connection,
+            )
+            for s in newsletter.sections
+        ],
+        plain_text=newsletter.plain_text,
+        html=newsletter.html,
+        generated_at=newsletter.generated_at.isoformat(),
+        errors=result.errors,
+        generated_for="Demo — ML/Robotics Researcher",
+        profile_id=profile_id,
+        topic_names=[t.name for t in sorted_topics],
+        topic_scores=[round(s / max_score, 4) for s in raw_scores],
+    )
+    _store_newsletter(response)
+    return response
 
 
 @app.get("/demo/seed/status")
