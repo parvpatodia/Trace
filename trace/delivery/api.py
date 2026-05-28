@@ -1306,7 +1306,7 @@ function badgeLabel(type) {
   return map[type] || type;
 }
 function fmtContent(text) {
-  const parts = String(text).split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+  const parts = String(text).split(/\\n\\n+/).map(p => p.trim()).filter(Boolean);
   return parts.length ? parts.map(p => '<p>'+esc(p)+'</p>').join('') : '<p>'+esc(String(text).trim())+'</p>';
 }
 function downloadBlob(content, filename, mime) {
@@ -1386,7 +1386,7 @@ function renderNewsletter(data) {
       html += '<div class="nl-content">'+fmtContent(s.content)+'</div>';
       if (s.deep_insight && s.deep_insight.trim()) {
         html += '<div class="nl-deep"><div class="nl-deep-lbl">Deep Insight</div>';
-        s.deep_insight.split(/\n\n+/).map(p=>p.trim()).filter(Boolean).forEach(p=>{ html += '<p>'+esc(p)+'</p>'; });
+        s.deep_insight.split(/\\n\\n+/).map(p=>p.trim()).filter(Boolean).forEach(p=>{ html += '<p>'+esc(p)+'</p>'; });
         html += '</div>';
       }
       if (s.why_this_matters && s.why_this_matters.trim()) {
@@ -1489,7 +1489,7 @@ function demoLog(msg) {
   const el = document.getElementById('demo-output');
   if (!el) return;
   const ts = new Date().toISOString().slice(11,19);
-  el.textContent = '['+ts+'] '+msg+'\n'+el.textContent;
+  el.textContent = '['+ts+'] '+msg+'\\n'+el.textContent;
 }
 
 async function _fetchJson(url, opts) {
@@ -1513,15 +1513,23 @@ async function generateDemoNewsletter() {
   const btn = document.getElementById('step-5');
   if (btn) { btn.disabled = true; btn.querySelector('span:last-child').textContent = '⏳ Generating…'; }
   demoLog('✦ Generating Intelligence Digest from demo profile…');
-  demoLog('  (Claude will write from training knowledge if Apify is unconfigured)');
+  demoLog('  ⏱ Claude is writing your personalized digest — this takes 60-120s');
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), 300000); // 5-minute safety net
   try {
-    const data = await _fetchJson('/demo/newsletter', {method: 'POST'});
+    const data = await _fetchJson('/demo/newsletter', {method: 'POST', signal: ctrl.signal});
+    clearTimeout(tid);
     demoLog('✅ Newsletter generated: "' + data.subject_line + '"');
     demoLog('   Sections: ' + data.sections.length + ' · Topics: ' + (data.topic_names||[]).join(', '));
     renderNewsletter(data);
     document.getElementById('result').scrollIntoView({behavior: 'smooth'});
   } catch(e) {
-    demoLog('❌ Newsletter failed: ' + e.message + ' — seed the demo profile first?');
+    clearTimeout(tid);
+    if (e.name === 'AbortError') {
+      demoLog('⏰ Request timed out after 5 min — try again or check server logs');
+    } else {
+      demoLog('❌ Newsletter failed: ' + e.message + ' — seed the demo profile first?');
+    }
   } finally {
     if (btn) { btn.disabled = false; btn.querySelector('span:last-child').textContent = 'Generate Digest ✦'; }
   }
