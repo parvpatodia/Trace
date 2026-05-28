@@ -207,21 +207,44 @@ class AgentOrchestrator:
         graph: CuriosityGraph,
         profile_id: str = "default",
     ) -> list[dict[str, Any]]:
-        """Process all pattern events and return a log of dispatched actions."""
-        results: list[dict[str, Any]] = []
+        """Process pattern events concurrently and return dispatched action log.
 
-        for event in events:
-            try:
-                if not await _is_significant(event, graph):
-                    _log.debug("Pattern %s/%s skipped (not significant)", event.pattern_type, event.topic_name)
-                    continue
-                action_results = await self._dispatch(event, profile_id)
-                results.extend(action_results)
-            except Exception as exc:
-                _log.error(
-                    "Orchestrator error for %s/%s: %s",
-                    event.pattern_type, event.topic_name, exc,
-                )
+        Significance checks run in parallel (one Claude call per event), then
+        dispatch calls run concurrently for all significant events.  This keeps
+        demo latency under ~5 s regardless of event count.
+
+        Capped at 8 events to avoid runaway Claude spend on large graphs.
+        """
+        # Cap to top 8 by score to keep demo snappy
+        capped = events[:8]
+
+        # Run all significance checks concurrently
+        sig_results = await asyncio.gather(
+            *[_is_significant(ev, graph) for ev in capped],
+            return_exceptions=True,
+        )
+
+        significant = [
+            ev for ev, sig in zip(capped, sig_results)
+            if sig is True  # exceptions (isinstance(sig, Exception)) treated as False
+        ]
+        skipped = len(capped) - len(significant)
+        if skipped:
+            _log.debug("Orchestrator: %d event(s) skipped (not significant)", skipped)
+
+        # Dispatch all significant events concurrently
+        dispatch_results = await asyncio.gather(
+            *[self._dispatch(ev, profile_id) for ev in significant],
+            return_exceptions=True,
+        )
+
+        results: list[dict[str, Any]] = []
+        for ev, res in zip(significant, dispatch_results):
+            if isinstance(res, Exception):
+                _log.error("Orchestrator dispatch error for %s/%s: %s", ev.pattern_type, ev.topic_name, res)
+            elif isinstance(res, list):
+                results.extend(res)
+
         return results
 
     async def _dispatch(

@@ -39,7 +39,18 @@ except ModuleNotFoundError:
     AsyncIOScheduler = None  # type: ignore[assignment,misc]
     IntervalTrigger = None  # type: ignore[assignment]
 
-_DEMO_MODE = os.getenv("TRACE_DEMO_MODE", "false").lower() in ("true", "1", "yes")
+def _env_demo_from_settings() -> bool:
+    try:
+        from trace.config import get_settings
+        return get_settings().trace_demo_mode
+    except Exception:
+        return False
+
+
+_DEMO_MODE = (
+    os.getenv("TRACE_DEMO_MODE", "false").lower() in ("true", "1", "yes")
+    or _env_demo_from_settings()
+)
 
 # Job intervals (seconds).
 _GMAIL_INTERVAL = 30 if _DEMO_MODE else 900      # 30 s demo | 15 min prod

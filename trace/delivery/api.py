@@ -251,9 +251,9 @@ def _build_pipeline_from_settings(
                 from trace.scraper.apify import ApifyScraper
                 scrapers.append(ApifyScraper(
                     api_token=settings.apify_api_token,
-                    actor_id=settings.apify_actor_id,
+                    # No actor_id override — v2 auto-selects rag-web-browser per topic
                 ))
-                _log.info("Apify scraper active (actor: %s)", settings.apify_actor_id)
+                _log.info("Apify scraper active (quality-first v2)")
             except Exception as exc:
                 _log.warning("Apify scraper skipped: %s", exc)
 

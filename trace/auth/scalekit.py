@@ -62,17 +62,27 @@ def get_scalekit_client() -> "ScalekitClient | None":
 
     Returns None rather than raising so that callers can degrade gracefully
     (auth endpoints return 503) instead of crashing the whole service.
+    Catches ScalekitForbiddenException (host not in allowlist) and any other
+    constructor errors — all treated as "not configured".
     """
     if not _SCALEKIT_AVAILABLE:
         return None
     settings = get_settings()
     if not (settings.scalekit_env_url and settings.scalekit_client_id and settings.scalekit_client_secret):
         return None
-    return ScalekitClient(
-        env_url=settings.scalekit_env_url,
-        client_id=settings.scalekit_client_id,
-        client_secret=settings.scalekit_client_secret,
-    )
+    try:
+        return ScalekitClient(
+            env_url=settings.scalekit_env_url,
+            client_id=settings.scalekit_client_id,
+            client_secret=settings.scalekit_client_secret,
+        )
+    except Exception as exc:
+        _log.warning(
+            "Scalekit client init failed (%s) — running without Scalekit integration. "
+            "Tier A/B actions will use stub mode.",
+            str(exc).split('\n')[0],
+        )
+        return None
 
 
 def _require_client() -> ScalekitClient:

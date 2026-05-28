@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = Field(default=8000, ge=1024, le=65535)
 
+    # Demo mode — compresses scheduler intervals to 30 s for live demos.
+    # Set TRACE_DEMO_MODE=true in .env or environment before starting the server.
+    trace_demo_mode: bool = False
+
     @field_validator("anthropic_model")
     @classmethod
     def must_be_claude_model(cls, v: str) -> str:
