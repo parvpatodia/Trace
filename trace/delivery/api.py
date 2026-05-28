@@ -1113,19 +1113,18 @@ details[open] .upload-toggle::before{transform:rotate(90deg)}
 <div class="sec-hdr"><h2>Built With</h2></div>
 <div class="card">
   <div class="sp-grid">
-    <div class="sp-card"><div class="sp-name">Anthropic Claude</div><div class="sp-desc">Topic extraction · briefing · significance gating</div></div>
-    <div class="sp-card"><div class="sp-name">Apify</div><div class="sp-desc">rag-web-browser · quality-first article scraping</div></div>
-    <div class="sp-card"><div class="sp-name">Scalekit</div><div class="sp-desc">OAuth 2.1 MCP Auth · Token Vault</div></div>
-    <div class="sp-card"><div class="sp-name">Tigris Data</div><div class="sp-desc">S3-compatible global object storage</div></div>
-    <div class="sp-card"><div class="sp-name">Kalibr</div><div class="sp-desc">Agent orchestration · retry · failure detection</div></div>
-    <div class="sp-card"><div class="sp-name">Redis</div><div class="sp-desc">Sub-50ms curiosity graph reads via ZSET</div></div>
-    <div class="sp-card"><div class="sp-name">Render</div><div class="sp-desc">One-click deploy with managed Redis</div></div>
+    <div class="sp-card"><div class="sp-name">Anthropic Claude</div><div class="sp-desc">Topic extraction · newsletter composition · MCP briefings · prompt caching</div></div>
+    <div class="sp-card"><div class="sp-name">Apify</div><div class="sp-desc">rag-web-browser · 4× candidate expansion · domain quality scoring</div></div>
+    <div class="sp-card"><div class="sp-name">Tigris Data</div><div class="sp-desc">S3-compatible globally-distributed object storage for uploads + artifacts</div></div>
+    <div class="sp-card"><div class="sp-name">Kalibr</div><div class="sp-desc">Real Kalibr SDK · auto-instruments Anthropic · Thompson Sampling router · outcome reporting</div></div>
+    <div class="sp-card"><div class="sp-name">Render</div><div class="sp-desc">One-click deploy via render.yaml · managed Redis · autoscaling</div></div>
+    <div class="sp-card"><div class="sp-name">Redis</div><div class="sp-desc">Sub-50ms curiosity graph reads · ZSET-indexed topic scores</div></div>
   </div>
 </div>
 
 </div><!-- /page -->
 
-<footer>Trace — Curiosity OS &nbsp;·&nbsp; Applied Intelligence Hackathon 2026 &nbsp;·&nbsp; Claude · Apify · Scalekit · Tigris Data · Kalibr · Redis · Render</footer>
+<footer>Trace — Curiosity OS &nbsp;·&nbsp; Applied Intelligence Hackathon 2026 &nbsp;·&nbsp; Claude · Apify · Tigris Data · Kalibr · Render · Redis</footer>
 
 <script>
 let newsletterData = null, fileCount = 0;

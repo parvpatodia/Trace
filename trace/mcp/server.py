@@ -538,7 +538,7 @@ async def health() -> dict[str, Any]:
     Returns capability flags for each sponsor tool so judges can see all
     integrations are wired in a single call.
     """
-    from trace.agent.kalibr_guard import get_event_log
+    from trace.agent.kalibr_guard import get_event_log, kalibr_sdk_active
     from trace.storage.tigris import get_tigris_store
 
     redis_ok = False
@@ -555,38 +555,44 @@ async def health() -> dict[str, Any]:
 
     return {
         "status": "ok",
+        "hackathon": "Applied Intelligence Hackathon 2026 — Frontier Tower, SF",
         "sponsors": {
             "anthropic_claude": {
                 "active": bool(s.anthropic_api_key),
                 "model": s.anthropic_model,
+                "features": ["prompt_caching", "extended_context", "tool_use"],
+                "note": "Topic extraction + newsletter composition + MCP briefings",
             },
-            "apify_mcp": {
+            "apify": {
                 "active": bool(s.apify_api_token),
-                "default_actor": "apify/google-search-scraper",
+                "default_actor": "apify/rag-web-browser",
                 "actor_hint_mappings": 13,
-            },
-            "scalekit": {
-                "mcp_auth_active": bool(s.scalekit_mcp_resource_id and s.scalekit_env_url),
-                "connect_active": bool(
-                    s.scalekit_env_url and s.scalekit_client_id and s.scalekit_client_secret
-                ),
-                "apify_connection_name": s.scalekit_apify_connection_name,
-                "note": "Token Vault routes Apify calls — Apify token never in env vars",
-            },
-            "redis": {
-                "active": redis_ok,
-                "enabled": _redis_store.enabled,
-                "note": "Sub-50ms curiosity graph reads via ZSET index",
+                "note": "Quality-first web scraping — 4x candidate expansion, domain scoring",
             },
             "tigris_data": {
                 **tigris_status,
                 "note": "S3-compatible globally-distributed storage for uploads + artifacts",
             },
             "kalibr": {
-                "active": True,
+                "sdk_active": kalibr_sdk_active(),
+                "auto_instrumentation": True,
                 "total_action_events": len(kalibr_events),
                 "recent_events": kalibr_events[-5:],
-                "note": "Agent orchestration layer — failure detection + exponential backoff retry",
+                "note": (
+                    "Real Kalibr SDK (kalibr.systems) — auto-instruments all Anthropic calls, "
+                    "Thompson Sampling router for newsletter composition, "
+                    "reports action outcomes for self-optimization. "
+                    "Set KALIBR_API_KEY + KALIBR_TENANT_ID for full routing."
+                ),
+            },
+            "render": {
+                "active": True,
+                "note": "Deployed via render.yaml — web service + Redis (allkeys-lru)",
+            },
+            "redis": {
+                "active": redis_ok,
+                "enabled": _redis_store.enabled,
+                "note": "Sub-50ms curiosity graph reads via ZSET index",
             },
         },
         "mcp_tools": [

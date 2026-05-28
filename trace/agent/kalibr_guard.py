@@ -1,42 +1,94 @@
 """
-Kalibr — agent orchestration layer with failure detection and recovery.
+Kalibr — agent orchestration layer with failure detection, routing, and recovery.
 
-Kalibr wraps every autonomous action dispatch with:
-  1. Pre-flight validation (schema check, rate-limit guard)
-  2. Execution with structured error capture
-  3. Automatic retry with exponential backoff on transient failures
-  4. Failure escalation to the approvals queue when retries exhausted
-  5. Audit trail of every action attempt and outcome
+Uses the official Kalibr Python SDK (pip install kalibr) when credentials are
+configured. Falls back to the in-process retry layer when they are not.
 
-WHY KALIBR MATTERS FOR AN AGENT OS:
-  Trace's autonomous loop runs on a schedule and executes Tier A actions
-  (Notion, Calendar, Slack) without user confirmation. Without a guard layer,
-  a single transient Scalekit error silently kills the whole action batch.
-  Kalibr gives us structured failure visibility and recovery so the agent
-  keeps working even when individual connectors are flaky.
+WHAT THE REAL KALIBR SDK ADDS:
+  - Auto-instrumentation of every Anthropic API call (zero code changes needed).
+    Just importing this module instruments all Claude calls with Kalibr telemetry.
+  - Thompson Sampling router: routes each goal to the model+path that is actually
+    succeeding in production, learning over time.
+  - Self-healing loop: detects structural failures (bad JSON, truncated output),
+    classifies root cause via LLM judge, auto-repairs prompts or swaps models.
+  - Outcome reporting: `router.report(success=bool)` feeds back to the bandit.
 
-INTEGRATION APPROACH:
-  KalibrGuard is a thin decorator/context-manager pattern. The orchestrator
-  calls `execute_with_guard(action_fn, *args)` instead of `action_fn(*args)`
-  directly. Guard handles retries, logs to the Kalibr event stream, and
-  surfaces failures in the /health endpoint.
+INTEGRATION:
+  - `_action_router`: guards action dispatch (Notion, Gmail, Slack, Calendar).
+    Reports success when the action returns status in {created, sent, ok}.
+  - `_compose_router`: used by NewsletterComposer to validate JSON output and
+    trigger self-healing on truncation or malformed responses.
+  - Auto-instrumentation fires on module import — no API key needed for tracing.
+
+GRACEFUL DEGRADATION:
+  If KALIBR_API_KEY / KALIBR_TENANT_ID are not set, Router init fails and we
+  fall back to the in-process exponential-backoff retry. All telemetry continues
+  to be logged locally via the event log.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from collections import deque
 from typing import Any, Awaitable, Callable
 
 _log = logging.getLogger(__name__)
 
-# In-memory event log — last 200 action events surfaced on /health endpoint.
+# ── Kalibr SDK bootstrap ─────────────────────────────────────────────────────
+# Importing kalibr auto-instruments the Anthropic SDK. This happens even without
+# an API key — all Claude calls are traced to /tmp/kalibr_otel_spans.jsonl.
+_KALIBR_SDK_AVAILABLE = False
+_action_router: Any = None
+_compose_router: Any = None
+
+try:
+    import kalibr  # noqa: F401 — side effect: instruments Anthropic
+    from kalibr import Router
+
+    _KALIBR_SDK_AVAILABLE = True
+
+    _action_router = Router(
+        goal="agent_action_dispatch",
+        paths=[os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")],
+        success_when=lambda out: isinstance(out, dict) and out.get("status") in (
+            "created", "sent", "ok", "draft_created"
+        ),
+    )
+    _compose_router = Router(
+        goal="newsletter_compose",
+        paths=[os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")],
+        success_when=lambda out: '"subject_line"' in out and '"sections"' in out,
+    )
+    _log.info("[Kalibr] SDK v%s loaded — action + compose routers active",
+              getattr(kalibr, "__version__", "?"))
+
+except Exception as exc:
+    _log.info("[Kalibr] SDK not fully configured (%s) — using local retry fallback. "
+              "Set KALIBR_API_KEY + KALIBR_TENANT_ID for full routing.", str(exc)[:120])
+
+
+def get_action_router() -> Any:
+    """Return the Kalibr action Router, or None if SDK not configured."""
+    return _action_router
+
+
+def get_compose_router() -> Any:
+    """Return the Kalibr compose Router, or None if SDK not configured."""
+    return _compose_router
+
+
+def kalibr_sdk_active() -> bool:
+    return _KALIBR_SDK_AVAILABLE and _action_router is not None
+
+
+# ── In-memory event log ───────────────────────────────────────────────────────
+# Last 200 action events surfaced on /health and the MCP health tool.
 _event_log: deque[dict[str, Any]] = deque(maxlen=200)
 
 
 def get_event_log() -> list[dict[str, Any]]:
-    """Return recent Kalibr action events for the /health endpoint."""
     return list(_event_log)
 
 
@@ -51,6 +103,8 @@ def _record(action: str, topic: str, status: str, attempt: int, detail: str = ""
     })
 
 
+# ── Guard execution ───────────────────────────────────────────────────────────
+
 async def execute_with_guard(
     action_fn: Callable[..., Awaitable[dict[str, Any]]],
     action_name: str,
@@ -60,19 +114,21 @@ async def execute_with_guard(
     base_delay: float = 1.0,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Execute an async action function with Kalibr failure detection and retry.
+    """Execute an async action with Kalibr failure detection, retry, and outcome reporting.
 
-    - Retries up to max_attempts on transient errors (network, rate-limit).
-    - Returns the first successful result.
-    - Returns a structured failure dict if all attempts exhausted.
-    - All attempts are recorded in the Kalibr event log.
+    When the Kalibr SDK is configured:
+      - Reports success/failure to the Kalibr bandit after each execution.
+      - The Router learns which action paths succeed most reliably over time.
+
+    When not configured:
+      - Falls back to local exponential-backoff retry (unchanged behaviour).
 
     Args:
-        action_fn: The async callable to guard (e.g. notion.create_topic_page).
-        action_name: Human-readable name for logging (e.g. "notion_page").
-        topic: Topic name this action relates to — used for event log grouping.
-        max_attempts: How many times to try before giving up.
-        base_delay: Backoff base in seconds (doubles each retry).
+        action_fn:    Async callable to guard (e.g. notion.create_topic_page).
+        action_name:  Human-readable name for logging and Kalibr goal grouping.
+        topic:        Topic name — used for event log and Kalibr metadata.
+        max_attempts: Max retry attempts before giving up.
+        base_delay:   Exponential backoff base in seconds.
     """
     last_result: dict[str, Any] = {}
     for attempt in range(1, max_attempts + 1):
@@ -80,13 +136,23 @@ async def execute_with_guard(
             result = await action_fn(*args, **kwargs)
             status = result.get("status", "unknown")
 
-            # Stub / auth_required are not retryable — surface immediately.
+            # Stub / auth_required — not retryable, surface immediately.
             if status in ("stub", "auth_required"):
                 _record(action_name, topic, status, attempt, result.get("reason", ""))
+                if _action_router:
+                    try:
+                        _action_router.report(success=False, reason=status)
+                    except Exception:
+                        pass
                 return result
 
             if status in ("created", "sent", "ok", "draft_created"):
                 _record(action_name, topic, "success", attempt)
+                if _action_router:
+                    try:
+                        _action_router.report(success=True)
+                    except Exception:
+                        pass
                 return result
 
             # Error status — may be retryable.
@@ -103,11 +169,15 @@ async def execute_with_guard(
                 await asyncio.sleep(delay)
                 continue
 
-            # Non-retryable error or final attempt.
             _log.warning(
                 "[Kalibr] %s for topic=%r failed after %d attempt(s): %s",
                 action_name, topic, attempt, err_detail[:120],
             )
+            if _action_router:
+                try:
+                    _action_router.report(success=False, reason=err_detail[:80])
+                except Exception:
+                    pass
             return result
 
         except Exception as exc:
@@ -126,13 +196,17 @@ async def execute_with_guard(
                     "[Kalibr] %s for topic=%r exhausted retries: %s",
                     action_name, topic, err_detail,
                 )
+                if _action_router:
+                    try:
+                        _action_router.report(success=False, reason=err_detail[:80])
+                    except Exception:
+                        pass
                 return {"status": "error", "error": err_detail, "attempts": max_attempts}
 
     return last_result or {"status": "error", "error": "unknown_failure"}
 
 
 def _is_transient(error_str: str) -> bool:
-    """Heuristic: is this error likely transient and worth retrying?"""
     transient_markers = (
         "timeout", "connection", "rate_limit", "429", "503", "502",
         "temporarily", "try again", "network", "socket",

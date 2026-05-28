@@ -32,6 +32,7 @@ dependencies = [
     "networkx>=3.3,<4.0",
     "python-louvain>=0.16,<1.0",
     "boto3>=1.34,<2.0",
+    "kalibr>=1.0,<2.0",
 ]
 
 [project.optional-dependencies]

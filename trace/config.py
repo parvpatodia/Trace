@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     tigris_bucket_name: str = "trace-curiosity"
     tigris_endpoint_url: str = "https://fly.storage.tigris.dev"
 
+    # Kalibr — agent orchestration, routing, and self-healing (kalibr.systems).
+    # Get API key at: https://dashboard.kalibr.systems/settings
+    kalibr_api_key: str | None = None
+    kalibr_tenant_id: str | None = None
+
     # Redis URL for the curiosity graph cache (sub-50ms reads for MCP tools).
     redis_url: str | None = None
 

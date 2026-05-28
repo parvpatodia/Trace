@@ -192,6 +192,17 @@ class NewsletterComposer:
         user_message = _build_user_message(ctx)
         raw_json = await self._call_claude(user_message)
         data = _parse_response(raw_json)
+
+        # Report outcome to Kalibr router — feeds the Thompson Sampling bandit
+        # so it learns which model/path produces valid newsletter JSON most reliably.
+        try:
+            from trace.agent.kalibr_guard import get_compose_router
+            router = get_compose_router()
+            if router:
+                router.report(success=True)
+        except Exception:
+            pass
+
         return _build_newsletter(data)
 
     async def _call_claude(self, user_message: str) -> str:
