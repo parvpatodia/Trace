@@ -59,14 +59,29 @@ class ApprovalsQueue:
     def __init__(self) -> None:
         self._queue: list[PendingAction] = []
         self._lock = asyncio.Lock()
+        # Dedup set: tracks (action_type, profile_id, title) for pending items
+        # so the same subscription_debt topic doesn't get re-queued every 30 s.
+        self._pending_keys: set[str] = set()
+
+    def _dedup_key(self, action: PendingAction) -> str:
+        return f"{action.action_type}:{action.profile_id}:{action.title}"
 
     async def enqueue(self, action: PendingAction) -> PendingAction:
-        """Add a pending action. Drops the oldest item if queue is full."""
+        """Add a pending action. Skips if an identical pending action exists."""
         async with self._lock:
+            key = self._dedup_key(action)
+            if key in self._pending_keys:
+                _log.debug(
+                    "Approvals dedup: skipping duplicate %s %r (profile=%s)",
+                    action.action_type, action.title[:60], action.profile_id,
+                )
+                return action
             if len(self._queue) >= _MAX_QUEUE_SIZE:
                 dropped = self._queue.pop(0)
+                self._pending_keys.discard(self._dedup_key(dropped))
                 _log.warning("Approvals queue full — dropped oldest: %s", dropped.id)
             self._queue.append(action)
+            self._pending_keys.add(key)
             _log.info(
                 "Enqueued Tier B action %s: %s (profile=%s)",
                 action.action_type, action.title[:60], action.profile_id,
@@ -96,6 +111,7 @@ class ApprovalsQueue:
                 if action.id == action_id and action.status == "pending":
                     action.status = "approved"
                     action.resolved_at = datetime.now(timezone.utc)
+                    self._pending_keys.discard(self._dedup_key(action))
                     _log.info("Action approved: %s (%s)", action_id, action.action_type)
                     return action
         _log.warning("Approve: action %s not found or already resolved", action_id)
@@ -108,6 +124,7 @@ class ApprovalsQueue:
                 if action.id == action_id and action.status == "pending":
                     action.status = "rejected"
                     action.resolved_at = datetime.now(timezone.utc)
+                    self._pending_keys.discard(self._dedup_key(action))
                     _log.info("Action rejected: %s (%s)", action_id, action.action_type)
                     return action
         _log.warning("Reject: action %s not found or already resolved", action_id)

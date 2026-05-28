@@ -71,6 +71,55 @@ _previous_graphs: dict[str, Any] = {}
 _DEFAULT_PROFILE = "demo" if _DEMO_MODE else "default"
 
 
+def _boost_graph_with_signals(graph: Any, signals: list[Any]) -> Any:
+    """Apply pending signals to the graph by boosting matched topic recency scores.
+
+    For each pending signal, keyword-matches against existing topic names and
+    bumps their recency_score by a small amount (capped at 1.0). Topics not
+    matched by any signal are unchanged.  Runs in O(topics × signals) — fast
+    enough for the 30-second scheduler tick with typical demo-scale data.
+
+    Returns a new CuriosityGraph (frozen model — original is never mutated).
+    """
+    if not signals or graph is None or graph.is_empty():
+        return graph
+
+    try:
+        from trace.models import CuriosityGraph
+
+        signal_texts = [s.content.lower() for s in signals if hasattr(s, "content")]
+        if not signal_texts:
+            return graph
+
+        boosted_topics = []
+        for topic in graph.topics:
+            name_lower = topic.name.lower()
+            name_words = set(name_lower.split())
+            # Check if any signal text mentions this topic
+            match_weight = 0.0
+            for text in signal_texts:
+                if name_lower in text or any(w in text for w in name_words if len(w) > 3):
+                    match_weight += 0.04  # +4% recency per matching signal
+            if match_weight > 0:
+                new_score = min(1.0, topic.recency_score + match_weight)
+                boosted_topics.append(topic.model_copy(update={"recency_score": new_score}))
+            else:
+                boosted_topics.append(topic)
+
+        _log.info(
+            "[scheduler] signal boost: %d signal(s) applied to graph (%d topics)",
+            len(signals), len(boosted_topics),
+        )
+        return CuriosityGraph(
+            topics=tuple(boosted_topics),
+            signal_count=graph.signal_count + len(signals),
+            source_breakdown=graph.source_breakdown,
+        )
+    except Exception as exc:
+        _log.warning("[scheduler] _boost_graph_with_signals failed: %s", exc)
+        return graph
+
+
 # ── Job: Poll Gmail signals ───────────────────────────────────────────────────
 
 async def _job_poll_gmail() -> None:
@@ -174,8 +223,14 @@ async def _job_detect_and_act() -> None:
             _log.info("[scheduler] detect_and_act: no graph yet — skipping")
             return
 
+        # Consume pending signals and apply them to the graph so recency scores
+        # reflect agent observations collected since the last full pipeline run.
+        pending = _pending_signals.pop(_DEFAULT_PROFILE, [])
+        if pending:
+            graph = _boost_graph_with_signals(graph, pending)
+
         previous = _previous_graphs.get(_DEFAULT_PROFILE)
-        pending_count = len(_pending_signals.get(_DEFAULT_PROFILE, []))
+        pending_count = len(pending)
 
         events = run_all_detectors(
             current_graph=graph,
