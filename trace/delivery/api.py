@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Trace FastAPI delivery layer.
 
@@ -407,649 +408,475 @@ _FRONTEND_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Trace — Your Curiosity, Distilled</title>
+<title>Trace — Curiosity OS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #0a0a0f;
-    --surface: #13131a;
-    --surface2: #1c1c26;
-    --border: #252535;
-    --border2: #2e2e42;
-    --accent: #6366f1;
-    --accent-hover: #818cf8;
-    --accent-dim: rgba(99,102,241,0.12);
-    --text: #e2e8f0;
-    --muted: #8892a4;
-    --muted2: #6b7280;
-    --error: #f87171;
-    --success: #34d399;
-    --warn: #fbbf24;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 2.5rem 1rem 4rem;
-    -webkit-font-smoothing: antialiased;
-  }
-  .container { width: 100%; max-width: 780px; }
+:root{
+  --bg:#04040e;--s1:#0a0a1a;--s2:#0f0f1e;--s3:#161626;
+  --border:rgba(148,163,255,0.07);--border-md:rgba(148,163,255,0.13);--border-hi:rgba(148,163,255,0.22);
+  --accent:#7c3aed;--accent-b:#4f46e5;--accent-l:#a78bfa;--accent-glow:rgba(124,58,237,0.18);
+  --cyan:#22d3ee;--green:#10b981;--yellow:#f59e0b;--red:#ef4444;--pink:#f472b6;
+  --t1:#f0f0fa;--t2:#9090b8;--t3:#55556a;
+  --font:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif;
+  --mono:'JetBrains Mono','Fira Code',monospace;
+  --r:14px;--r-sm:8px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--t1);font-family:var(--font);
+  font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;
+  min-height:100vh;overflow-x:hidden;
+}
+a{color:var(--accent-l);text-decoration:none}
+a:hover{color:var(--t1)}
+button{font-family:var(--font);cursor:pointer}
+code,pre{font-family:var(--mono)}
 
-  /* ── Header ── */
-  header { text-align: center; margin-bottom: 3rem; }
-  .logo { font-size: 2.8rem; font-weight: 700; letter-spacing: -0.04em; line-height: 1; }
-  .logo span { color: var(--accent); }
-  .tagline { color: var(--muted); margin-top: 0.6rem; font-size: 1rem; font-weight: 400; }
+/* Orbs */
+.orb-field{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+.orb{position:absolute;border-radius:50%;filter:blur(110px);opacity:0.22;animation:drift 22s ease-in-out infinite}
+.orb-1{width:700px;height:700px;background:#4f46e5;top:-280px;left:-120px;animation-delay:0s}
+.orb-2{width:550px;height:550px;background:#7c3aed;bottom:-180px;right:-80px;animation-delay:-8s}
+.orb-3{width:420px;height:420px;background:#06b6d4;top:38%;left:42%;transform:translate(-50%,-50%);animation-delay:-16s;opacity:0.1}
+@keyframes drift{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-50px) scale(1.06)}}
+.orb-3{animation:drift3 22s ease-in-out infinite}
+@keyframes drift3{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) translateY(-50px) scale(1.06)}}
 
-  /* ── Cards ── */
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 1.75rem 2rem;
-    margin-bottom: 1.25rem;
-  }
-  .card-title {
-    font-size: 0.7rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.12em;
-    color: var(--muted2); margin-bottom: 1.25rem;
-  }
+/* Nav */
+nav{
+  position:sticky;top:0;z-index:100;
+  background:rgba(4,4,14,0.75);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+}
+.nav-inner{
+  max-width:920px;margin:0 auto;padding:0 1.5rem;
+  display:flex;align-items:center;height:54px;gap:0.75rem;
+}
+.nav-logo{
+  font-size:1.15rem;font-weight:800;letter-spacing:-0.04em;
+  background:linear-gradient(135deg,var(--accent-l),var(--cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.nav-tag{
+  font-size:0.6rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
+  color:var(--t3);border:1px solid var(--border-md);padding:0.18em 0.5em;border-radius:4px;
+}
+.nav-status{
+  display:flex;align-items:center;gap:0.4rem;margin-left:auto;
+  font-size:0.7rem;color:var(--t2);
+}
+.sdot{
+  width:7px;height:7px;border-radius:50%;background:var(--t3);flex-shrink:0;
+  transition:background 0.3s;
+}
+.sdot.live{background:var(--green);animation:pdot 2s ease-in-out infinite}
+@keyframes pdot{0%{box-shadow:0 0 0 0 rgba(16,185,129,0.5)}70%{box-shadow:0 0 0 8px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
+#loop-next-run{color:var(--t3);font-family:var(--mono);font-size:0.67rem}
 
-  /* ── Source cards (stacked, all visible) ── */
-  .source-cards { display: flex; flex-direction: column; gap: 0.75rem; }
-  .source-card {
-    background: var(--surface2);
-    border: 1px solid var(--border2);
-    border-radius: 10px;
-    overflow: hidden;
-    transition: border-color 0.2s;
-  }
-  .source-card.has-file { border-color: rgba(99,102,241,0.5); }
-  .source-card-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0.85rem 1.1rem; cursor: pointer; user-select: none;
-    gap: 0.75rem;
-  }
-  .source-card-left { display: flex; align-items: center; gap: 0.75rem; }
-  .source-icon { font-size: 1.3rem; flex-shrink: 0; line-height: 1; }
-  .source-name { font-size: 0.92rem; font-weight: 600; }
-  .source-desc { font-size: 0.78rem; color: var(--muted); margin-top: 0.1rem; }
-  .source-status {
-    font-size: 0.75rem; font-weight: 500;
-    color: var(--muted2); white-space: nowrap; flex-shrink: 0;
-  }
-  .source-status.chosen { color: var(--success); }
-  .expand-toggle {
-    color: var(--muted2); font-size: 0.65rem;
-    flex-shrink: 0; transition: transform 0.2s;
-  }
-  .source-card.expanded .expand-toggle { transform: rotate(180deg); }
-  .source-body { display: none; border-top: 1px solid var(--border2); padding: 1rem 1.1rem; }
-  .source-card.expanded .source-body { display: block; }
-  .how-to {
-    background: rgba(99,102,241,0.07);
-    border: 1px solid rgba(99,102,241,0.18);
-    border-radius: 8px;
-    padding: 0.85rem 1rem;
-    font-size: 0.82rem;
-    color: var(--muted);
-    margin-bottom: 1rem;
-  }
-  .how-to strong { color: var(--text); }
-  .how-to ol { padding-left: 1.2rem; line-height: 2.1; }
-  .how-to code {
-    background: rgba(255,255,255,0.09);
-    padding: 0.1em 0.4em;
-    border-radius: 3px;
-    font-family: 'SF Mono', 'Fira Code', monospace;
-    font-size: 0.77rem;
-  }
-  .upload-zone {
-    border: 2px dashed var(--border2);
-    border-radius: 8px;
-    padding: 1.5rem;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
-    display: block;
-  }
-  .upload-zone:hover, .upload-zone.drag-over {
-    border-color: var(--accent);
-    background: rgba(99,102,241,0.06);
-  }
-  .upload-zone input { display: none; }
-  .upload-zone-label { font-size: 0.88rem; font-weight: 500; color: var(--text); }
-  .upload-zone-sub { font-size: 0.78rem; color: var(--muted); margin-top: 0.2rem; }
-  .upload-zone-chosen { font-size: 0.82rem; color: var(--success); font-weight: 500; margin-top: 0.5rem; }
+/* Page */
+.page{position:relative;z-index:1;max-width:920px;margin:0 auto;padding:0 1.5rem 6rem}
 
-  /* ── Signal strength bar ── */
-  .signal-bar-row {
-    display: flex; align-items: center; gap: 0.6rem;
-    margin-top: 1.25rem; margin-bottom: 0.25rem;
-  }
-  .signal-bar-label { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
-  .signal-bar-track {
-    flex: 1; height: 4px; background: var(--border2);
-    border-radius: 2px; overflow: hidden;
-  }
-  .signal-bar-fill {
-    height: 100%; width: 0%;
-    background: linear-gradient(90deg, #6366f1, #818cf8);
-    border-radius: 2px;
-    transition: width 0.4s ease;
-  }
-  .signal-bar-count { font-size: 0.75rem; color: var(--muted2); white-space: nowrap; }
+/* Hero */
+.hero{text-align:center;padding:4.5rem 0 3.5rem}
+.hero-pill{
+  display:inline-flex;align-items:center;gap:0.45rem;
+  font-size:0.67rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
+  color:var(--accent-l);background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.22);
+  padding:0.32em 0.9em;border-radius:999px;margin-bottom:1.5rem;
+}
+.hero-pill::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--accent-l);display:inline-block}
+.hero-title{
+  font-size:clamp(3rem,7.5vw,5.2rem);font-weight:800;
+  letter-spacing:-0.045em;line-height:1.08;margin-bottom:1.25rem;
+}
+.grad{
+  background:linear-gradient(135deg,var(--accent-l) 0%,var(--cyan) 55%,#38bdf8 100%);
+  background-size:200% auto;
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  animation:shim 5s linear infinite;
+}
+@keyframes shim{to{background-position:200% center}}
+.hero-sub{font-size:1.05rem;color:var(--t2);max-width:540px;margin:0 auto;line-height:1.75}
 
-  /* ── Generate button & loading ── */
-  .gen-section { margin-top: 1.5rem; }
-  button.primary {
-    width: 100%; padding: 0.9rem;
-    background: var(--accent); color: white;
-    border: none; border-radius: 9px;
-    font-size: 0.97rem; font-weight: 600; letter-spacing: -0.01em;
-    cursor: pointer; transition: background 0.2s, transform 0.1s;
-    font-family: inherit;
-  }
-  button.primary:hover:not(:disabled) { background: var(--accent-hover); }
-  button.primary:active:not(:disabled) { transform: scale(0.99); }
-  button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
-  .loading-wrap { display: none; flex-direction: column; align-items: center; gap: 0.75rem; padding: 1.25rem 0; }
-  .dots { display: flex; gap: 6px; align-items: center; }
-  .dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--accent); opacity: 0.3;
-    animation: dotPulse 1.4s ease-in-out infinite;
-  }
-  .dot:nth-child(2) { animation-delay: 0.2s; }
-  .dot:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes dotPulse {
-    0%, 80%, 100% { opacity: 0.3; transform: scale(0.85); }
-    40% { opacity: 1; transform: scale(1); }
-  }
-  .stage-msg { font-size: 0.88rem; color: var(--muted); text-align: center; min-height: 1.4em; }
-  .stage-msg.error { color: var(--error); }
-  .timing-hint {
-    font-size: 0.73rem; color: var(--muted2);
-    text-align: center; margin-top: 0.4rem;
-  }
+/* Section divider */
+.sec-hdr{display:flex;align-items:center;gap:0.75rem;margin:2rem 0 0.85rem}
+.sec-hdr h2{font-size:0.62rem;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:var(--t3);white-space:nowrap}
+.sec-hdr::after{content:'';flex:1;height:1px;background:var(--border)}
 
-  /* ── Privacy note ── */
-  .privacy-note {
-    font-size: 0.78rem; color: var(--muted);
-    background: rgba(255,255,255,0.02);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 0.85rem 1.1rem;
-    margin-bottom: 1.25rem;
-    line-height: 1.65;
-  }
-  .privacy-note strong { color: var(--text); }
+/* Cards */
+.card{
+  background:var(--s1);border:1px solid var(--border);border-radius:var(--r);
+  padding:1.5rem;margin-bottom:0.85rem;transition:border-color 0.2s;
+}
+.card:hover{border-color:var(--border-md)}
+.card.accent-border{border-color:rgba(124,58,237,0.28);box-shadow:inset 0 0 0 1px rgba(124,58,237,0.08),0 8px 40px rgba(124,58,237,0.07)}
+.clabel{
+  font-size:0.62rem;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;
+  color:var(--t3);margin-bottom:1rem;display:flex;align-items:center;gap:0.45rem;
+}
+.clabel-dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:0.6}
 
-  /* ── Result panel ── */
-  @keyframes fadeSlideUp {
-    from { opacity: 0; transform: translateY(16px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  #result { display: none; animation: fadeSlideUp 0.4s ease; }
-  .result-header {
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 1.25rem;
-    margin-bottom: 1.5rem;
-  }
-  .result-eyebrow {
-    font-size: 0.7rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.12em;
-    color: var(--accent); margin-bottom: 0.4rem;
-  }
-  .result-subject { font-size: 1.55rem; font-weight: 700; line-height: 1.3; letter-spacing: -0.02em; }
-  .result-meta { font-size: 0.78rem; color: var(--muted); margin-top: 0.45rem; }
+/* Privacy */
+.privacy{
+  font-size:0.75rem;color:var(--t2);
+  background:rgba(255,255,255,0.015);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:0.75rem 1rem;line-height:1.65;margin-bottom:0.85rem;
+}
+.privacy strong{color:var(--t1)}
 
-  /* ── Curiosity profile block ── */
-  .curiosity-profile {
-    margin-bottom: 1.5rem;
-    padding: 1.1rem 1.25rem;
-    background: rgba(52,211,153,0.04);
-    border: 1px solid rgba(52,211,153,0.18);
-    border-radius: 10px;
-  }
-  .profile-label {
-    font-size: 0.68rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.12em;
-    color: #34d399; margin-bottom: 0.75rem;
-  }
-  .topic-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
-  .topic-chip {
-    display: inline-block; font-size: 0.74rem; font-weight: 500;
-    padding: 0.28em 0.75em; border-radius: 20px;
-    background: rgba(99,102,241,0.15); color: #a5b4fc;
-    border: 1px solid rgba(99,102,241,0.3);
-    cursor: default; transition: background 0.15s;
-  }
-  .topic-chip:hover { background: rgba(99,102,241,0.25); }
-  .regen-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
-  .btn-regen {
-    padding: 0.4rem 1rem;
-    background: rgba(52,211,153,0.12);
-    border: 1px solid rgba(52,211,153,0.35);
-    border-radius: 7px;
-    color: #34d399;
-    font-size: 0.8rem; font-weight: 500;
-    cursor: pointer; transition: all 0.2s;
-    font-family: inherit;
-  }
-  .btn-regen:hover:not(:disabled) { background: rgba(52,211,153,0.22); border-color: #34d399; }
-  .btn-regen:disabled { opacity: 0.45; cursor: not-allowed; }
-  .regen-link { font-size: 0.74rem; color: var(--muted); font-family: 'SF Mono', monospace; }
-  .regen-link a { color: var(--accent); text-decoration: none; }
-  .regen-link a:hover { text-decoration: underline; }
+/* Source cards */
+.src-list{display:flex;flex-direction:column;gap:0.45rem}
+.sc{background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden;transition:border-color 0.2s}
+.sc.active{border-color:rgba(124,58,237,0.38)}
+.sc-head{display:flex;align-items:center;gap:0.7rem;padding:0.85rem 1rem;cursor:pointer;user-select:none}
+.sc-icon{font-size:1.1rem;flex-shrink:0;line-height:1}
+.sc-info{flex:1}
+.sc-name{font-size:0.86rem;font-weight:600;color:var(--t1)}
+.sc-desc{font-size:0.7rem;color:var(--t3);margin-top:0.1rem}
+.sc-badge{font-size:0.62rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;padding:0.18em 0.5em;border-radius:4px;color:var(--t3);border:1px solid var(--border-md);flex-shrink:0}
+.sc-badge.ok{color:var(--green);border-color:rgba(16,185,129,0.3);background:rgba(16,185,129,0.07)}
+.sc-chev{color:var(--t3);font-size:0.58rem;transition:transform 0.2s;flex-shrink:0}
+.sc.open .sc-chev{transform:rotate(180deg)}
+.sc-body{display:none;border-top:1px solid var(--border);padding:1rem}
+.sc.open .sc-body{display:block}
 
-  /* ── Download / share row ── */
-  .action-row {
-    display: flex; gap: 0.6rem; margin-bottom: 1.25rem; flex-wrap: wrap;
-    align-items: center;
-  }
-  .btn-action {
-    padding: 0.42rem 1rem;
-    background: transparent;
-    border: 1px solid var(--border2);
-    border-radius: 7px;
-    color: var(--muted);
-    font-size: 0.8rem; font-weight: 500;
-    cursor: pointer; transition: all 0.2s;
-    font-family: inherit;
-  }
-  .btn-action:hover { border-color: var(--accent); color: var(--accent); }
-  .share-link { font-size: 0.74rem; color: var(--muted); margin-left: auto; }
-  .share-link a { color: var(--accent); text-decoration: none; }
-  .share-link a:hover { text-decoration: underline; }
+/* Howto */
+.howto{
+  background:rgba(124,58,237,0.05);border:1px solid rgba(124,58,237,0.14);
+  border-radius:var(--r-sm);padding:0.8rem 1rem;font-size:0.78rem;color:var(--t2);
+  margin-bottom:0.85rem;line-height:1.7;
+}
+.howto ol{padding-left:1.15rem}
+.howto li{margin-top:0.28rem}
+.howto strong{color:var(--t1)}
+.howto code{background:rgba(255,255,255,0.07);padding:0.1em 0.38em;border-radius:3px;font-size:0.76rem;color:var(--t1)}
 
-  /* ── Table of contents ── */
-  .toc {
-    margin-bottom: 1.5rem;
-    padding: 1rem 1.25rem;
-    background: rgba(99,102,241,0.05);
-    border: 1px solid rgba(99,102,241,0.18);
-    border-radius: 9px;
-  }
-  .toc-label {
-    font-size: 0.68rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.12em;
-    color: var(--accent); margin-bottom: 0.6rem;
-  }
-  .toc ol { padding-left: 1.2rem; }
-  .toc li { margin-top: 0.3rem; font-size: 0.86rem; line-height: 1.5; }
-  .toc a { color: var(--text); text-decoration: none; }
-  .toc a:hover { color: var(--accent); }
+/* Drop zone */
+.drop{
+  border:2px dashed var(--border-md);border-radius:var(--r-sm);
+  padding:1.35rem;text-align:center;cursor:pointer;transition:all 0.2s;display:block;
+}
+.drop:hover,.drop.over{border-color:var(--accent);background:rgba(124,58,237,0.05)}
+.drop input{display:none}
+.drop-label{font-size:0.84rem;font-weight:500;color:var(--t1)}
+.drop-sub{font-size:0.7rem;color:var(--t3);margin-top:0.18rem}
+.drop-ok{font-size:0.78rem;color:var(--green);font-weight:500;margin-top:0.45rem}
 
-  /* ── Newsletter sections ── */
-  .section {
-    margin-bottom: 2rem; padding-bottom: 1.75rem;
-    border-bottom: 1px solid var(--border);
-  }
-  .section:last-child { border-bottom: none; margin-bottom: 0; }
-  .section-meta { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.55rem; }
-  .section-badge {
-    display: inline-block;
-    font-size: 0.67rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.1em;
-    padding: 0.22em 0.65em; border-radius: 4px;
-  }
-  .badge-weekly_topics { background: rgba(99,102,241,0.18); color: #818cf8; }
-  .badge-curiosity_debt { background: rgba(251,191,36,0.14); color: #fbbf24; }
-  .badge-rabbit_hole { background: rgba(52,211,153,0.14); color: #34d399; }
-  .section h3 { font-size: 1.12rem; font-weight: 700; margin-bottom: 0.7rem; line-height: 1.4; letter-spacing: -0.01em; }
-  .section .content-body p { color: #c8d3e0; line-height: 1.8; font-size: 0.94rem; margin-bottom: 0.85rem; }
-  .section .content-body p:last-child { margin-bottom: 0; }
+/* Signal bar */
+.sig-row{display:flex;align-items:center;gap:0.7rem;margin-top:1.2rem}
+.sig-lbl{font-size:0.7rem;color:var(--t3);white-space:nowrap}
+.sig-track{flex:1;height:3px;background:var(--s3);border-radius:2px;overflow:hidden}
+.sig-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));transition:width 0.4s ease}
+.sig-count{font-size:0.7rem;color:var(--t3);white-space:nowrap}
 
-  /* ── Sources ── */
-  .sources { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.35rem; }
-  .sources a {
-    display: flex; align-items: center; gap: 0.45rem;
-    font-size: 0.79rem; color: var(--accent); text-decoration: none;
-  }
-  .sources a:hover { color: var(--accent-hover); }
-  .src-badge {
-    display: inline-block; font-size: 0.62rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.06em;
-    padding: 0.15em 0.5em; border-radius: 3px;
-    flex-shrink: 0;
-  }
-  .src-arxiv { background: rgba(180,120,255,0.2); color: #c084fc; }
-  .src-hn    { background: rgba(251,146,60,0.2);  color: #fb923c; }
-  .src-web   { background: rgba(56,189,248,0.2);  color: #38bdf8; }
-  .link-text {
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    max-width: 500px;
-  }
+/* Buttons */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:0.35rem;
+  font-family:var(--font);font-size:0.85rem;font-weight:600;
+  border:none;border-radius:var(--r-sm);cursor:pointer;transition:all 0.15s;
+  padding:0.58rem 1.15rem;letter-spacing:-0.01em;
+}
+.btn-primary{
+  background:var(--accent);color:#fff;
+  box-shadow:0 0 0 1px rgba(124,58,237,0.4),0 4px 20px rgba(124,58,237,0.22);
+}
+.btn-primary:hover:not(:disabled){background:#6d28d9;box-shadow:0 0 0 1px rgba(109,40,217,0.5),0 6px 24px rgba(124,58,237,0.32)}
+.btn-primary:active:not(:disabled){transform:scale(0.98)}
+.btn-primary:disabled{opacity:0.38;cursor:not-allowed}
+.btn-full{width:100%;padding:0.85rem;font-size:0.95rem}
+.btn-ghost{background:transparent;border:1px solid var(--border-md);color:var(--t2)}
+.btn-ghost:hover{border-color:var(--border-hi);color:var(--t1);background:rgba(255,255,255,0.03)}
+.btn-sm{font-size:0.76rem;padding:0.35rem 0.8rem;border-radius:6px}
+.btn-v{background:rgba(124,58,237,0.13);border:1px solid rgba(124,58,237,0.3);color:var(--accent-l)}
+.btn-v:hover{background:rgba(124,58,237,0.22)}
+.btn-c{background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.22);color:var(--cyan)}
+.btn-c:hover{background:rgba(34,211,238,0.18)}
+.btn-g{background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.28);color:var(--green)}
+.btn-g:hover{background:rgba(16,185,129,0.22)}
+.btn-r{background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.28);color:var(--red)}
+.btn-r:hover{background:rgba(239,68,68,0.22)}
 
-  /* ── Audit details ── */
-  details.audit {
-    margin-top: 0.85rem;
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    overflow: hidden;
-  }
-  details.audit summary {
-    padding: 0.5rem 0.85rem;
-    font-size: 0.76rem; color: var(--muted2);
-    cursor: pointer; user-select: none; list-style: none;
-  }
-  details.audit summary::-webkit-details-marker { display: none; }
-  details.audit summary::before { content: "▶  "; font-size: 0.58rem; }
-  details[open].audit summary::before { content: "▼  "; }
-  details.audit .audit-body {
-    padding: 0.8rem;
-    font-size: 0.8rem; color: var(--muted);
-    border-top: 1px solid var(--border);
-    background: rgba(0,0,0,0.18);
-    line-height: 1.65;
-  }
+/* Loading */
+.loading-wrap{
+  display:none;flex-direction:column;align-items:center;
+  padding:2.5rem 1.5rem;text-align:center;
+}
+.spinner{
+  width:38px;height:38px;border-radius:50%;
+  border:3px solid var(--border-md);border-top-color:var(--accent);
+  animation:spin 0.75s linear infinite;margin-bottom:1.1rem;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.stage-msg{font-size:0.88rem;color:var(--t2);min-height:1.5em}
+.stage-msg.err{color:var(--red)}
+.timing-note{font-size:0.7rem;color:var(--t3);margin-top:0.38rem}
 
-  /* ── Errors ── */
-  .errors-box {
-    margin-top: 1rem;
-    padding: 0.85rem 1rem;
-    background: rgba(248,113,113,0.07);
-    border: 1px solid rgba(248,113,113,0.22);
-    border-radius: 8px;
-    font-size: 0.8rem; color: #fca5a5;
-  }
-  .errors-box h4 { margin-bottom: 0.4rem; font-weight: 600; }
-  .errors-box li { margin-left: 1rem; margin-top: 0.25rem; line-height: 1.5; }
+/* Result */
+@keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+#result{display:none;animation:fadeUp 0.4s ease}
+.res-eyebrow{font-size:0.62rem;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:var(--accent-l);margin-bottom:0.45rem}
+.res-subject{font-size:1.6rem;font-weight:800;letter-spacing:-0.025em;line-height:1.22;margin-bottom:0.38rem}
+.res-meta{font-size:0.72rem;color:var(--t3)}
 
-  footer {
-    margin-top: 3rem; text-align: center;
-    font-size: 0.74rem; color: var(--muted2);
-    letter-spacing: 0.02em;
-  }
+/* Chips */
+.chips{display:flex;flex-wrap:wrap;gap:0.38rem;margin-bottom:0.8rem}
+.chip{
+  font-size:0.7rem;font-weight:500;padding:0.24em 0.68em;border-radius:20px;
+  background:rgba(124,58,237,0.12);color:var(--accent-l);
+  border:1px solid rgba(124,58,237,0.24);cursor:default;transition:background 0.15s;
+}
+.chip:hover{background:rgba(124,58,237,0.22)}
+
+/* Action row */
+.act-row{display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center;margin-bottom:0.9rem}
+
+/* TOC */
+.toc-box{background:rgba(124,58,237,0.04);border:1px solid rgba(124,58,237,0.13);border-radius:var(--r-sm);padding:0.85rem 1rem;margin-bottom:1.1rem}
+.toc-lbl{font-size:0.6rem;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:var(--accent-l);margin-bottom:0.45rem}
+.toc-box ol{padding-left:1.15rem}
+.toc-box li{margin-top:0.24rem;font-size:0.82rem;line-height:1.5}
+.toc-box a{color:var(--t1)}.toc-box a:hover{color:var(--accent-l)}
+
+/* Newsletter sections */
+.nls{margin-bottom:1.65rem;padding-bottom:1.4rem;border-bottom:1px solid var(--border)}
+.nls:last-child{border-bottom:none}
+.nl-badge{display:inline-block;font-size:0.6rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;padding:0.2em 0.58em;border-radius:4px;margin-bottom:0.52rem}
+.badge-weekly_topics{background:rgba(79,70,229,0.14);color:#818cf8}
+.badge-curiosity_debt{background:rgba(245,158,11,0.12);color:var(--yellow)}
+.badge-rabbit_hole{background:rgba(16,185,129,0.12);color:var(--green)}
+.nls h3{font-size:1.08rem;font-weight:700;margin-bottom:0.55rem;letter-spacing:-0.01em;line-height:1.32}
+.nl-body p{color:#c0cce0;line-height:1.8;font-size:0.91rem;margin-bottom:0.7rem}
+.nl-body p:last-child{margin-bottom:0}
+
+/* Sources */
+.srcs{margin-top:0.8rem;display:flex;flex-direction:column;gap:0.28rem}
+.srcs a{display:flex;align-items:center;gap:0.38rem;font-size:0.77rem;color:var(--accent-l)}
+.srcs a:hover{color:var(--t1)}
+.spill{display:inline-block;font-size:0.58rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:0.14em 0.42em;border-radius:3px;flex-shrink:0}
+.sp-arxiv{background:rgba(180,120,255,0.17);color:#c084fc}
+.sp-hn{background:rgba(251,146,60,0.17);color:#fb923c}
+.sp-web{background:rgba(56,189,248,0.17);color:#38bdf8}
+.slink{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:460px}
+
+/* Audit */
+details.why{margin-top:0.7rem;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+details.why summary{padding:0.42rem 0.75rem;font-size:0.7rem;color:var(--t3);cursor:pointer;user-select:none;list-style:none}
+details.why summary::-webkit-details-marker{display:none}
+details.why summary::before{content:"▶  ";font-size:0.56rem}
+details[open].why summary::before{content:"▼  "}
+.why-body{padding:0.7rem;font-size:0.77rem;color:var(--t2);border-top:1px solid var(--border);background:rgba(0,0,0,0.12);line-height:1.6}
+
+/* Errors */
+.err-box{margin-top:0.9rem;padding:0.75rem 1rem;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.2);border-radius:var(--r-sm);font-size:0.78rem;color:#fca5a5}
+.err-box h4{margin-bottom:0.32rem;font-weight:600}
+.err-box li{margin-left:0.95rem;margin-top:0.18rem;line-height:1.5}
+
+/* Graph */
+#graph-card{display:none}
+#d3-graph{width:100%;height:380px;background:var(--s2);border-radius:var(--r-sm);overflow:hidden}
+
+/* Code block */
+.code-block{background:var(--s2);border:1px solid var(--border-md);border-radius:var(--r-sm);padding:0.85rem 1rem;font-family:var(--mono);font-size:0.75rem;color:var(--t2);line-height:1.8;overflow-x:auto}
+.code-lbl{font-size:0.58rem;font-family:var(--font);letter-spacing:0.08em;text-transform:uppercase;color:var(--t3);margin-bottom:0.42rem;font-weight:600}
+
+/* Terminal */
+.terminal{
+  background:#030308;border:1px solid var(--border-md);border-radius:var(--r-sm);
+  padding:0.8rem 1rem;font-family:var(--mono);font-size:0.72rem;color:#5a6280;
+  max-height:230px;overflow-y:auto;white-space:pre-wrap;line-height:1.7;
+}
+.terminal::-webkit-scrollbar{width:4px}
+.terminal::-webkit-scrollbar-track{background:transparent}
+.terminal::-webkit-scrollbar-thumb{background:var(--border-md);border-radius:2px}
+
+/* Loop bar */
+.loop-bar{
+  display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap;
+  padding:0.55rem 0.8rem;background:var(--s2);border:1px solid var(--border);
+  border-radius:var(--r-sm);font-size:0.72rem;margin-bottom:0.85rem;
+}
+#loop-status-text{color:var(--t2)}
+
+/* Demo btn row */
+.demo-btns{display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.85rem}
+
+/* Approvals */
+.ap-card{background:var(--s2);border:1px solid var(--border-md);border-radius:var(--r-sm);padding:0.8rem;margin-bottom:0.55rem}
+.ap-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.38rem;gap:0.45rem}
+.ap-title{color:var(--t1);font-size:0.82rem;font-weight:600;flex:1}
+.ap-type{background:var(--s3);color:var(--t3);padding:0.15rem 0.45rem;border-radius:4px;font-size:0.62rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;flex-shrink:0}
+.ap-prev{color:var(--t2);font-size:0.73rem;margin-bottom:0.6rem;line-height:1.5}
+.ap-btns{display:flex;gap:0.4rem}
+
+/* Sponsor / tools grid */
+.sp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:0.55rem}
+.sp-card{background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);padding:0.75rem 0.85rem}
+.sp-name{font-weight:600;color:var(--t1);font-size:0.8rem;margin-bottom:0.18rem}
+.sp-desc{color:var(--t3);font-size:0.67rem;line-height:1.4}
+
+/* Connect grid */
+.cn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:0.55rem}
+.cn-card{background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);padding:0.85rem}
+.cn-name{font-weight:600;color:var(--t1);font-size:0.83rem;margin-bottom:0.28rem}
+.cn-desc{color:var(--t3);font-size:0.7rem;line-height:1.4;margin-bottom:0.6rem}
+.cn-row{display:flex;align-items:center;gap:0.38rem}
+.cn-st{font-size:0.68rem;color:var(--t3)}
+
+/* Tools row */
+.tools-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:0.45rem;margin-top:0.8rem}
+.tool-card{background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:0.48rem 0.7rem}
+.tool-lbl{font-size:0.58rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent-l);margin-bottom:0.12rem}
+.tool-name{font-size:0.74rem;font-family:var(--mono);color:var(--t1)}
+
+/* Regen */
+.regen-row{display:flex;align-items:center;gap:0.7rem;flex-wrap:wrap;margin-top:0.38rem}
+.regen-lnk{font-size:0.7rem;color:var(--t3);font-family:var(--mono)}
+.regen-lnk a{color:var(--accent-l)}
+
+/* Footer */
+footer{text-align:center;padding:1.75rem 0 0.5rem;font-size:0.68rem;color:var(--t3);letter-spacing:0.04em;border-top:1px solid var(--border);margin-top:2rem}
+
+/* Utils */
+.mt1{margin-top:0.5rem}.mt2{margin-top:1rem}.mb1{margin-bottom:0.5rem}.mb2{margin-bottom:1rem}
+.ml-auto{margin-left:auto}.flex{display:flex}.items-c{align-items:center}.gap2{gap:0.5rem}
 </style>
 </head>
 <body>
-<div class="container">
-  <header>
-    <div style="display:inline-block;padding:0.3rem 0.7rem;background:var(--accent-dim);color:var(--accent);font-size:0.7rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;border-radius:999px;margin-bottom:1rem;">Curiosity OS &middot; MCP-native</div>
-    <div class="logo">Tr<span>a</span>ce</div>
-    <p class="tagline">The personal curiosity data plane for AI agents.</p>
-    <p style="color:var(--muted2,#6b7280);margin-top:0.5rem;font-size:0.88rem;max-width:560px;margin-left:auto;margin-right:auto;line-height:1.5;">
-      Every AI agent will need to know what <em>you</em> care about. Trace exposes your real interests &mdash; inferred from what you actually browse, search, and read &mdash; as MCP tools any agent can query.
-    </p>
-  </header>
 
-  <!-- MCP Connection Banner -->
-  <div class="card" style="background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(99,102,241,0.02));border-color:rgba(99,102,241,0.3);margin-bottom:1.25rem;">
-    <div class="card-title" style="color:var(--accent)">Connect Trace to Claude Desktop</div>
-    <div style="font-size:0.85rem;color:var(--muted);line-height:1.6;margin-bottom:0.85rem;">
-      Trace is an MCP server. Add this snippet to your <code style="color:var(--text,#f1f5f9);background:var(--surface2,#1e293b);padding:0.1rem 0.4rem;border-radius:4px;font-size:0.8rem;">claude_desktop_config.json</code> and Claude can call Trace tools directly.
+<div class="orb-field">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<nav>
+  <div class="nav-inner">
+    <div class="nav-logo">Trace</div>
+    <div class="nav-tag">Curiosity OS</div>
+    <div class="nav-status">
+      <div class="sdot" id="loop-dot"></div>
+      <span id="loop-status-text">checking…</span>
+      <span id="loop-next-run"></span>
     </div>
-    <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.9rem 1rem;font-family:'SF Mono',Consolas,monospace;font-size:0.78rem;color:var(--muted);line-height:1.8;overflow-x:auto;">
-      <div style="color:var(--muted2,#6b7280);font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.5rem;font-family:Inter,sans-serif;">claude_desktop_config.json</div>
-      <div><span style="color:#818cf8">"mcpServers"</span>: {</div>
-      <div>&nbsp;&nbsp;<span style="color:#34d399">"trace"</span>: { <span style="color:#818cf8">"url"</span>: <span style="color:#fbbf24">"http://localhost:8000/mcp"</span>, <span style="color:#818cf8">"transport"</span>: <span style="color:#fbbf24">"http"</span> }</div>
-      <div>}</div>
+  </div>
+</nav>
+
+<div class="page">
+
+<section class="hero">
+  <div class="hero-pill">Agent-native · MCP-first · Autonomous</div>
+  <h1 class="hero-title">Your curiosity,<br><span class="grad">always surfaced</span></h1>
+  <p class="hero-sub">Trace infers what you genuinely care about from your browser history, YouTube, and ChatGPT — then exposes a live curiosity API that any AI agent can query.</p>
+</section>
+
+<!-- UPLOAD -->
+<div class="sec-hdr"><h2>Upload Your Signals</h2></div>
+
+<div class="privacy">
+  <strong>Your data stays local.</strong> You export your own files from Google / ChatGPT — no passwords required. Files are used once to build your curiosity profile, then <strong>deleted immediately</strong>. OAuth tokens for connected services live in Scalekit's encrypted vault, never in this server.
+</div>
+
+<div class="card">
+  <div class="src-list">
+    <div class="sc" id="card-google">
+      <div class="sc-head" onclick="toggleCard('google')">
+        <div class="sc-icon">🌐</div>
+        <div class="sc-info"><div class="sc-name">Chrome / Browser History</div><div class="sc-desc">BrowserHistory.json or Google Takeout ZIP</div></div>
+        <span class="sc-badge" id="status-google">Optional</span>
+        <span class="sc-chev">▼</span>
+      </div>
+      <div class="sc-body" id="body-google">
+        <div class="howto"><ol>
+          <li>Go to <strong>takeout.google.com</strong></li>
+          <li>Deselect all → select only <code>Chrome</code></li>
+          <li>Export → Download the ZIP (multiple date ranges OK)</li>
+          <li>Upload the <strong>ZIP directly</strong>, or extract <code>BrowserHistory.json</code></li>
+        </ol></div>
+        <label class="drop" id="drop-google">
+          <input type="file" id="file-google" accept=".json,.zip" multiple onchange="fileChosen('google')">
+          <div class="drop-label">Drop BrowserHistory.json or Takeout ZIP(s)</div>
+          <div class="drop-sub">click to browse · .json and .zip · multiple files OK</div>
+          <div class="drop-ok" id="chosen-google"></div>
+        </label>
+      </div>
     </div>
-    <div style="margin-top:0.85rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.5rem;font-size:0.72rem;">
-      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:6px;padding:0.5rem 0.7rem;">
-        <div style="color:var(--accent);font-weight:600;font-size:0.68rem;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.2rem;">Tool</div>
-        <code style="color:var(--text,#f1f5f9);font-size:0.75rem;">get_curiosity_topics</code>
+
+    <div class="sc" id="card-youtube">
+      <div class="sc-head" onclick="toggleCard('youtube')">
+        <div class="sc-icon">▶</div>
+        <div class="sc-info"><div class="sc-name">YouTube Watch History</div><div class="sc-desc">watch-history.json from Google Takeout</div></div>
+        <span class="sc-badge" id="status-youtube">Optional</span>
+        <span class="sc-chev">▼</span>
       </div>
-      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:6px;padding:0.5rem 0.7rem;">
-        <div style="color:var(--accent);font-weight:600;font-size:0.68rem;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.2rem;">Tool</div>
-        <code style="color:var(--text,#f1f5f9);font-size:0.75rem;">get_unresolved_questions</code>
+      <div class="sc-body" id="body-youtube">
+        <div class="howto"><ol>
+          <li>Go to <strong>takeout.google.com</strong></li>
+          <li>Deselect all → select <code>YouTube and YouTube Music</code></li>
+          <li>Export → Download → extract ZIP → find <code>history/watch-history.json</code></li>
+        </ol></div>
+        <label class="drop" id="drop-youtube">
+          <input type="file" id="file-youtube" accept=".json" onchange="fileChosen('youtube')">
+          <div class="drop-label">Drop watch-history.json</div>
+          <div class="drop-sub">click to browse · .json only</div>
+          <div class="drop-ok" id="chosen-youtube"></div>
+        </label>
       </div>
-      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:6px;padding:0.5rem 0.7rem;">
-        <div style="color:var(--accent);font-weight:600;font-size:0.68rem;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.2rem;">Tool</div>
-        <code style="color:var(--text,#f1f5f9);font-size:0.75rem;">generate_briefing</code>
+    </div>
+
+    <div class="sc" id="card-chatgpt">
+      <div class="sc-head" onclick="toggleCard('chatgpt')">
+        <div class="sc-icon">💬</div>
+        <div class="sc-info"><div class="sc-name">ChatGPT Export</div><div class="sc-desc">conversations.json — highest-signal source</div></div>
+        <span class="sc-badge" id="status-chatgpt">Optional</span>
+        <span class="sc-chev">▼</span>
       </div>
-      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:6px;padding:0.5rem 0.7rem;">
-        <div style="color:var(--accent);font-weight:600;font-size:0.68rem;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.2rem;">Tool</div>
-        <code style="color:var(--text,#f1f5f9);font-size:0.75rem;">track_signal</code>
+      <div class="sc-body" id="body-chatgpt">
+        <div class="howto"><ol>
+          <li>Open ChatGPT → avatar → <strong>Settings → Data Controls → Export Data</strong></li>
+          <li>Wait for the email → Download → extract → upload <code>conversations.json</code></li>
+          <li>ChatGPT conversations carry 1.5× weight — your most explicit intellectual intent</li>
+        </ol></div>
+        <label class="drop" id="drop-chatgpt">
+          <input type="file" id="file-chatgpt" accept=".json,.zip" onchange="fileChosen('chatgpt')">
+          <div class="drop-label">Drop conversations.json or ChatGPT ZIP</div>
+          <div class="drop-sub">click to browse · .json or .zip</div>
+          <div class="drop-ok" id="chosen-chatgpt"></div>
+        </label>
       </div>
     </div>
   </div>
 
-  <!-- Sponsor Stack -->
-  <div class="card" style="margin-bottom:1.25rem;">
-    <div class="card-title">Powered by</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.7rem;font-size:0.78rem;">
-      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.85rem 0.9rem;">
-        <div style="font-weight:600;color:var(--text,#f1f5f9);margin-bottom:0.2rem;">Anthropic Claude</div>
-        <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">Topic extraction + significance gating + briefing</div>
-      </div>
-      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.85rem 0.9rem;">
-        <div style="font-weight:600;color:var(--text,#f1f5f9);margin-bottom:0.2rem;">Apify MCP</div>
-        <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">Dynamic Actor selection · 31k+ scrapers</div>
-      </div>
-      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.85rem 0.9rem;">
-        <div style="font-weight:600;color:var(--text,#f1f5f9);margin-bottom:0.2rem;">Scalekit</div>
-        <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">OAuth 2.1 MCP Auth + Token Vault for connectors</div>
-      </div>
-      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.85rem 0.9rem;">
-        <div style="font-weight:600;color:var(--text,#f1f5f9);margin-bottom:0.2rem;">Tigris Data</div>
-        <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">S3-compatible global object storage for uploads + artifacts</div>
-      </div>
-      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.85rem 0.9rem;">
-        <div style="font-weight:600;color:var(--text,#f1f5f9);margin-bottom:0.2rem;">Kalibr</div>
-        <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">Agent orchestration · failure detection · auto-retry</div>
-      </div>
-      <div style="background:var(--surface2,#1e293b);border:1px solid var(--border2,#334155);border-radius:8px;padding:0.85rem 0.9rem;">
-        <div style="font-weight:600;color:var(--text,#f1f5f9);margin-bottom:0.2rem;">Redis</div>
-        <div style="color:var(--muted);font-size:0.72rem;line-height:1.4;">Sub-50ms curiosity graph reads via ZSET</div>
-      </div>
+  <div class="sig-row">
+    <span class="sig-lbl">Signal strength</span>
+    <div class="sig-track"><div class="sig-fill" id="sig-fill"></div></div>
+    <span class="sig-count" id="sig-count">0 / 3 sources</span>
+  </div>
+
+  <div class="mt2">
+    <button class="btn btn-primary btn-full" id="gen-btn" onclick="generate()">Generate Intelligence Digest →</button>
+    <div class="loading-wrap" id="loading-wrap">
+      <div class="spinner"></div>
+      <div class="stage-msg" id="stage-msg">Preparing…</div>
+      <div class="timing-note">Large histories take 1–2 minutes — keep this tab open</div>
     </div>
   </div>
+</div>
 
-  <!-- Connect Services (Scalekit Token Vault) -->
-  <div class="card" style="border-color:#6366f1;">
-    <div class="card-title" style="color:#818cf8;">Connect Services &mdash; Scalekit acts as you</div>
-    <p style="color:var(--muted);font-size:0.82rem;margin-bottom:1rem;">
-      Trace uses <strong>Scalekit Token Vault</strong> to connect your accounts.
-      Your OAuth tokens live in Scalekit's encrypted vault &mdash; never in Trace's env vars or memory.
-      Once connected, the autonomous agent can read your Gmail newsletters and act on your behalf.
-    </p>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.7rem;font-size:0.82rem;">
-      <div style="background:var(--surface2,#1e293b);border:1px solid #6366f1;border-radius:8px;padding:1rem;">
-        <div style="font-weight:600;color:#f1f5f9;margin-bottom:0.4rem;">📧 Gmail</div>
-        <div style="color:var(--muted);font-size:0.75rem;margin-bottom:0.7rem;">
-          Read newsletter subjects → build subscription-debt signals.
-          Trace never reads email bodies or sends emails automatically.
-        </div>
-        <button onclick="connectService('gmail')" style="background:#6366f1;color:#fff;border:none;border-radius:5px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">Connect Gmail</button>
-        <span id="gmail-status" style="color:var(--muted);font-size:0.72rem;margin-left:0.5rem;"></span>
-      </div>
-      <div style="background:var(--surface2,#1e293b);border:1px solid #334155;border-radius:8px;padding:1rem;">
-        <div style="font-weight:600;color:#f1f5f9;margin-bottom:0.4rem;">📝 Notion</div>
-        <div style="color:var(--muted);font-size:0.75rem;margin-bottom:0.7rem;">
-          Auto-save emerging topics as Notion pages (Tier A action).
-        </div>
-        <button onclick="connectService('notion-akG2REQU')" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:5px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">Connect Notion</button>
-        <span id="notion-akG2REQU-status" style="color:var(--muted);font-size:0.72rem;margin-left:0.5rem;"></span>
-      </div>
-      <div style="background:var(--surface2,#1e293b);border:1px solid #334155;border-radius:8px;padding:1rem;">
-        <div style="font-weight:600;color:#f1f5f9;margin-bottom:0.4rem;">📅 Calendar</div>
-        <div style="color:var(--muted);font-size:0.75rem;margin-bottom:0.7rem;">
-          Schedule deep-dive time for emerging interests (Tier A).
-        </div>
-        <button onclick="connectService('googlecalendar-fe75NXhO')" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:5px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">Connect Calendar</button>
-        <span id="googlecalendar-fe75NXhO-status" style="color:var(--muted);font-size:0.72rem;margin-left:0.5rem;"></span>
-      </div>
-      <div style="background:var(--surface2,#1e293b);border:1px solid #334155;border-radius:8px;padding:1rem;">
-        <div style="font-weight:600;color:#f1f5f9;margin-bottom:0.4rem;">💬 Slack</div>
-        <div style="color:var(--muted);font-size:0.75rem;margin-bottom:0.7rem;">
-          DM yourself when a pattern triggers (Tier A).
-        </div>
-        <button onclick="connectService('slack-RLnbqcmP')" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:5px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">Connect Slack</button>
-        <span id="slack-RLnbqcmP-status" style="color:var(--muted);font-size:0.72rem;margin-left:0.5rem;"></span>
-      </div>
-      <div style="background:var(--surface2,#1e293b);border:1px solid #334155;border-radius:8px;padding:1rem;">
-        <div style="font-weight:600;color:#f1f5f9;margin-bottom:0.4rem;">🟠 Reddit</div>
-        <div style="color:var(--muted);font-size:0.75rem;margin-bottom:0.7rem;">
-          Prepare bridge-topic posts for approval (Tier B draft — never auto-publishes).
-        </div>
-        <button onclick="connectService('reddit')" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:5px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.78rem;">Connect Reddit</button>
-        <span id="reddit-status" style="color:var(--muted);font-size:0.72rem;margin-left:0.5rem;"></span>
-      </div>
-    </div>
-  </div>
-
-  <div class="privacy-note">
-    <strong>Your data stays local.</strong>
-    You export your own files from Google / ChatGPT — no passwords or OAuth tokens required.
-    Files are sent only to this server, used once to generate your newsletter, then
-    <strong>deleted immediately</strong>. Nothing is stored or shared.
-    <br>OAuth tokens for Gmail/Notion/Calendar/Slack are stored in Scalekit's encrypted Token Vault — never in this server's memory or env vars.
-  </div>
-
+<!-- RESULT -->
+<div id="result">
+  <div class="sec-hdr"><h2>Intelligence Digest</h2></div>
   <div class="card">
-    <div class="card-title">Web UI &middot; Upload signals &rarr; get a briefing</div>
-
-    <div class="source-cards">
-
-      <!-- Chrome history -->
-      <div class="source-card" id="card-google">
-        <div class="source-card-header" onclick="toggleCard('google')">
-          <div class="source-card-left">
-            <div class="source-icon">🌐</div>
-            <div>
-              <div class="source-name">Chrome / Browser History</div>
-              <div class="source-desc">BrowserHistory.json or Takeout ZIP · multiple files supported</div>
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:0.6rem">
-            <span class="source-status" id="status-google">Optional</span>
-            <span class="expand-toggle">▼</span>
-          </div>
-        </div>
-        <div class="source-body" id="body-google">
-          <div class="how-to">
-            <ol>
-              <li>Go to <strong>takeout.google.com</strong></li>
-              <li>Deselect all → select only <code>Chrome</code></li>
-              <li>Export → Download (you can export multiple date ranges)</li>
-              <li>Upload the <strong>ZIP directly</strong>, or extract and upload <code>BrowserHistory.json</code></li>
-              <li>Select <strong>multiple files at once</strong> if you have several exports</li>
-            </ol>
-          </div>
-          <label class="upload-zone" id="drop-google">
-            <input type="file" id="file-google" accept=".json,.zip" multiple onchange="fileChosen('google')">
-            <div class="upload-zone-label">Drop BrowserHistory.json or Takeout ZIP(s) here</div>
-            <div class="upload-zone-sub">or click to browse · .json and .zip · multiple files OK</div>
-            <div class="upload-zone-chosen" id="chosen-google"></div>
-          </label>
-        </div>
-      </div>
-
-      <!-- YouTube history -->
-      <div class="source-card" id="card-youtube">
-        <div class="source-card-header" onclick="toggleCard('youtube')">
-          <div class="source-card-left">
-            <div class="source-icon">▶</div>
-            <div>
-              <div class="source-name">YouTube Watch History</div>
-              <div class="source-desc">watch-history.json from Google Takeout</div>
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:0.6rem">
-            <span class="source-status" id="status-youtube">Optional</span>
-            <span class="expand-toggle">▼</span>
-          </div>
-        </div>
-        <div class="source-body" id="body-youtube">
-          <div class="how-to">
-            <ol>
-              <li>Go to <strong>takeout.google.com</strong></li>
-              <li>Deselect all → select <code>YouTube and YouTube Music</code></li>
-              <li>Export → Download → extract the ZIP</li>
-              <li>Find <code>Takeout/YouTube and YouTube Music/history/watch-history.json</code></li>
-            </ol>
-            <p style="margin-top:0.5rem;font-size:0.79rem">
-              Re-watched lectures count as curiosity debt signals — they show interests you keep returning to.
-            </p>
-          </div>
-          <label class="upload-zone" id="drop-youtube">
-            <input type="file" id="file-youtube" accept=".json" onchange="fileChosen('youtube')">
-            <div class="upload-zone-label">Drop watch-history.json here</div>
-            <div class="upload-zone-sub">or click to browse · .json only</div>
-            <div class="upload-zone-chosen" id="chosen-youtube"></div>
-          </label>
-        </div>
-      </div>
-
-      <!-- ChatGPT export -->
-      <div class="source-card" id="card-chatgpt">
-        <div class="source-card-header" onclick="toggleCard('chatgpt')">
-          <div class="source-card-left">
-            <div class="source-icon">💬</div>
-            <div>
-              <div class="source-name">ChatGPT Export</div>
-              <div class="source-desc">conversations.json — highest-signal source</div>
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:0.6rem">
-            <span class="source-status" id="status-chatgpt">Optional</span>
-            <span class="expand-toggle">▼</span>
-          </div>
-        </div>
-        <div class="source-body" id="body-chatgpt">
-          <div class="how-to">
-            <ol>
-              <li>Open ChatGPT → click your avatar → <strong>Settings</strong></li>
-              <li>Go to <strong>Data Controls → Export Data</strong> → click Export</li>
-              <li>Wait for the confirmation email → click Download</li>
-              <li>Extract the ZIP → upload <code>conversations.json</code></li>
-            </ol>
-            <p style="margin-top:0.5rem;font-size:0.79rem">
-              ChatGPT conversations carry 1.5× weight — they represent your most explicit intellectual intent.
-            </p>
-          </div>
-          <label class="upload-zone" id="drop-chatgpt">
-            <input type="file" id="file-chatgpt" accept=".json" onchange="fileChosen('chatgpt')">
-            <div class="upload-zone-label">Drop conversations.json here</div>
-            <div class="upload-zone-sub">or click to browse · .json only</div>
-            <div class="upload-zone-chosen" id="chosen-chatgpt"></div>
-          </label>
-        </div>
-      </div>
-
-    </div><!-- /.source-cards -->
-
-    <!-- Signal strength bar -->
-    <div class="signal-bar-row">
-      <span class="signal-bar-label">Signal strength</span>
-      <div class="signal-bar-track"><div class="signal-bar-fill" id="sig-fill"></div></div>
-      <span class="signal-bar-count" id="sig-count">0 / 3 sources</span>
-    </div>
-
-    <div class="gen-section">
-      <div id="inline-error" style="display:none;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.4);border-radius:8px;padding:0.75rem 1rem;margin-bottom:0.75rem;font-size:0.85rem;color:#fca5a5;"></div>
-      <button class="primary" id="gen-btn" onclick="generate()">Generate My Newsletter</button>
-      <div class="loading-wrap" id="loading-wrap">
-        <div class="dots">
-          <div class="dot"></div><div class="dot"></div><div class="dot"></div>
-        </div>
-        <div class="stage-msg" id="stage-msg"></div>
-      </div>
-      <p class="timing-hint">Takes <strong style="color:var(--muted)">60–120 seconds</strong> — Claude reads your entire history and writes a personalised newsletter. Keep this tab open.</p>
-    </div>
-  </div><!-- /.card -->
-
-  <div id="result" class="card">
-    <div class="result-header">
-      <div class="result-eyebrow">Your Personalised Newsletter</div>
-      <div class="result-subject" id="subject"></div>
-      <div class="result-meta" id="meta"></div>
-    </div>
-    <div id="curiosity-profile"></div>
-    <div class="action-row" id="action-row">
-      <button class="btn-action" onclick="downloadHtml()">⬇ HTML</button>
-      <button class="btn-action" onclick="downloadText()">⬇ Plain Text</button>
-      <div id="share-link-container"></div>
+    <div class="res-eyebrow">Your Curiosity Brief</div>
+    <div class="res-subject" id="subject"></div>
+    <div class="res-meta" id="meta"></div>
+    <div id="curiosity-profile" class="mt2"></div>
+    <div class="act-row mt1">
+      <button class="btn btn-ghost btn-sm" onclick="downloadHtml()">↓ HTML</button>
+      <button class="btn btn-ghost btn-sm" onclick="downloadText()">↓ Text</button>
+      <span class="ml-auto" id="share-link-container"></span>
     </div>
     <div id="toc"></div>
     <div id="sections"></div>
@@ -1057,76 +884,113 @@ _FRONTEND_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
-<!-- D3 Curiosity Graph Visualization -->
-<div class="card" id="graph-card" style="display:none;">
-  <div class="card-title" style="color:var(--accent);">Curiosity Graph &mdash; Force-Directed</div>
-  <p style="color:var(--muted);font-size:0.8rem;margin-bottom:0.8rem;">
-    Topics as nodes · Semantic edges (cosine &gt;0.35) · Colour = community · Size = blended score
-  </p>
-  <div id="d3-graph" style="width:100%;height:400px;background:var(--surface2,#1e293b);border-radius:8px;border:1px solid var(--border2,#334155);overflow:hidden;"></div>
-  <div style="font-size:0.72rem;color:var(--muted);margin-top:0.5rem;">
-    <span id="graph-stats"></span>
-  </div>
+<!-- GRAPH -->
+<div class="card" id="graph-card">
+  <div class="clabel"><div class="clabel-dot" style="background:var(--cyan)"></div>Curiosity Graph · Semantic topic network</div>
+  <div id="d3-graph"></div>
 </div>
 
-<!-- Demo Control Panel -->
-<div class="card" style="border-color:#f59e0b;">
-  <div class="card-title" style="color:#fbbf24;">🎬 Demo Control Panel</div>
+<!-- AUTONOMOUS LOOP DEMO -->
+<div class="sec-hdr"><h2>Autonomous Agent Loop</h2></div>
 
-  <!-- Live loop status bar -->
-  <div id="loop-status-bar" style="display:flex;align-items:center;gap:0.6rem;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:0.55rem 0.8rem;margin-bottom:0.85rem;font-size:0.76rem;">
-    <span id="loop-dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#475569;flex-shrink:0;"></span>
-    <span id="loop-status-text" style="color:#94a3b8;">Checking autonomous loop status...</span>
-    <span style="margin-left:auto;color:#475569;font-size:0.7rem;" id="loop-next-run"></span>
-  </div>
-
-  <p style="color:var(--muted);font-size:0.8rem;margin-bottom:0.8rem;">
-    For hackathon judges: one-click autonomous agent demo — no credentials needed.
+<div class="card accent-border">
+  <div class="clabel"><div class="clabel-dot" style="background:var(--accent-l)"></div>Demo Control Panel</div>
+  <p style="font-size:0.8rem;color:var(--t2);margin-bottom:1.1rem;line-height:1.65">
+    Trace runs three loops every 30 s in DEMO_MODE: <strong style="color:var(--t1)">poll Gmail signals → scrape fresh articles → detect patterns → dispatch AI actions</strong>. Use the buttons below to trigger a manual cycle and watch the agent reason in real-time.
   </p>
-  <div style="display:flex;gap:0.7rem;flex-wrap:wrap;margin-bottom:0.8rem;">
-    <button onclick="seedDemo()" style="background:#f59e0b;color:#000;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;font-weight:600;">
-      1. Seed Demo Profile
-    </button>
-    <button onclick="runLoopNow()" style="background:#10b981;color:#fff;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;font-weight:600;">
-      2. Run Autonomous Loop Now ▶
-    </button>
-    <button onclick="loadGraph()" style="background:#6366f1;color:#fff;border:none;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">
-      3. Show Curiosity Graph
-    </button>
-    <button onclick="checkApprovals()" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;">
-      4. Check Pending Approvals
-    </button>
+
+  <div class="loop-bar">
+    <div class="sdot" id="loop-dot-demo"></div>
+    <span id="loop-status-text-demo" style="color:var(--t2)">checking…</span>
+    <span id="loop-next-run-demo" style="color:var(--t3);font-family:var(--mono);font-size:0.67rem;margin-left:auto"></span>
   </div>
-  <pre id="demo-output" style="background:#0f172a;color:#94a3b8;border:1px solid #334155;border-radius:6px;padding:0.8rem;font-size:0.75rem;max-height:250px;overflow-y:auto;white-space:pre-wrap;"></pre>
+
+  <div class="demo-btns">
+    <button class="btn btn-v btn-sm" onclick="seedDemo()">1. Seed Demo Profile</button>
+    <button class="btn btn-primary btn-sm" onclick="runLoopNow()">2. Run Autonomous Loop ▶</button>
+    <button class="btn btn-c btn-sm" onclick="loadGraph()">3. Render Curiosity Graph</button>
+    <button class="btn btn-ghost btn-sm" onclick="checkApprovals()">4. Check Pending Approvals</button>
+  </div>
+
+  <div class="terminal" id="demo-output">// Trace agent loop output will appear here...
+</div>
 </div>
 
-<!-- Pending Approvals Panel -->
-<div class="card" id="approvals-card" style="display:none;">
-  <div class="card-title" style="color:#f472b6;">📬 Pending Actions (Tier B)</div>
-  <p style="color:var(--muted);font-size:0.8rem;margin-bottom:0.8rem;">
-    These drafts require your approval before execution. Gmail drafts are created; Reddit posts are prepared but not submitted.
+<!-- PENDING APPROVALS -->
+<div class="card" id="approvals-card" style="display:none">
+  <div class="clabel"><div class="clabel-dot" style="background:var(--pink)"></div>Pending Actions — Tier B (require your approval)</div>
+  <p style="font-size:0.77rem;color:var(--t2);margin-bottom:0.8rem;line-height:1.6">
+    These drafts were prepared by the agent. Gmail drafts are only created after you approve. Reddit posts are never auto-published.
   </p>
   <div id="approvals-list"></div>
 </div>
 
-<footer>Trace &mdash; Curiosity OS &middot; Applied Intelligence Hackathon &middot; Claude &middot; Apify &middot; Scalekit &middot; Tigris Data &middot; Kalibr &middot; Redis</footer>
+<!-- MCP -->
+<div class="sec-hdr"><h2>Connect to Claude</h2></div>
+<div class="card">
+  <div class="clabel"><div class="clabel-dot" style="background:var(--accent-l)"></div>MCP Server · Add Trace to Claude Desktop</div>
+  <p style="font-size:0.8rem;color:var(--t2);margin-bottom:0.9rem;line-height:1.65">
+    Trace is an MCP server. Add this config to <code style="background:var(--s3);padding:0.1em 0.35em;border-radius:3px;font-size:0.77rem">claude_desktop_config.json</code> and Claude can query your live curiosity profile directly.
+  </p>
+  <div class="code-block">
+    <div class="code-lbl">claude_desktop_config.json</div>
+    <div><span style="color:#818cf8">"mcpServers"</span>: {</div>
+    <div>&nbsp;&nbsp;<span style="color:#34d399">"trace"</span>: { <span style="color:#818cf8">"url"</span>: <span style="color:#fbbf24">"http://localhost:8000/mcp"</span>, <span style="color:#818cf8">"transport"</span>: <span style="color:#fbbf24">"http"</span> }</div>
+    <div>}</div>
+  </div>
+  <div class="tools-row">
+    <div class="tool-card"><div class="tool-lbl">Tool</div><div class="tool-name">get_curiosity_topics</div></div>
+    <div class="tool-card"><div class="tool-lbl">Tool</div><div class="tool-name">get_unresolved_questions</div></div>
+    <div class="tool-card"><div class="tool-lbl">Tool</div><div class="tool-name">generate_briefing</div></div>
+    <div class="tool-card"><div class="tool-lbl">Tool</div><div class="tool-name">get_emerging_interests</div></div>
+    <div class="tool-card"><div class="tool-lbl">Tool</div><div class="tool-name">track_signal</div></div>
+    <div class="tool-card"><div class="tool-lbl">Tool</div><div class="tool-name">get_topic_neighbors</div></div>
+  </div>
+</div>
+
+<!-- CONNECT SERVICES -->
+<div class="sec-hdr"><h2>Connect Services</h2></div>
+<div class="card">
+  <div class="clabel"><div class="clabel-dot" style="background:var(--yellow)"></div>Scalekit Token Vault · Secure OAuth for agent actions</div>
+  <p style="font-size:0.78rem;color:var(--t2);margin-bottom:0.9rem;line-height:1.65">Your OAuth tokens live in <strong style="color:var(--t1)">Scalekit's encrypted vault</strong> — never in Trace's env vars or memory. Once connected, the autonomous agent can act on your behalf.</p>
+  <div class="cn-grid">
+    <div class="cn-card" style="border-color:rgba(124,58,237,0.28)">
+      <div class="cn-name">📧 Gmail</div>
+      <div class="cn-desc">Read newsletter subjects → subscription-debt signals</div>
+      <div class="cn-row"><button class="btn btn-v btn-sm" onclick="connectService('gmail')">Connect</button><span class="cn-st" id="gmail-status"></span></div>
+    </div>
+    <div class="cn-card"><div class="cn-name">📝 Notion</div><div class="cn-desc">Auto-save emerging topics as pages (Tier A)</div><div class="cn-row"><button class="btn btn-ghost btn-sm" onclick="connectService('notion-akG2REQU')">Connect</button><span class="cn-st" id="notion-akG2REQU-status"></span></div></div>
+    <div class="cn-card"><div class="cn-name">📅 Calendar</div><div class="cn-desc">Schedule deep-dive sessions (Tier A)</div><div class="cn-row"><button class="btn btn-ghost btn-sm" onclick="connectService('googlecalendar-fe75NXhO')">Connect</button><span class="cn-st" id="googlecalendar-fe75NXhO-status"></span></div></div>
+    <div class="cn-card"><div class="cn-name">💬 Slack</div><div class="cn-desc">DM when a pattern triggers (Tier A)</div><div class="cn-row"><button class="btn btn-ghost btn-sm" onclick="connectService('slack-RLnbqcmP')">Connect</button><span class="cn-st" id="slack-RLnbqcmP-status"></span></div></div>
+    <div class="cn-card"><div class="cn-name">🟠 Reddit</div><div class="cn-desc">Prepare bridge-topic drafts (Tier B, never auto-posts)</div><div class="cn-row"><button class="btn btn-ghost btn-sm" onclick="connectService('reddit')">Connect</button><span class="cn-st" id="reddit-status"></span></div></div>
+  </div>
+</div>
+
+<!-- BUILT WITH -->
+<div class="sec-hdr"><h2>Built With</h2></div>
+<div class="card">
+  <div class="sp-grid">
+    <div class="sp-card"><div class="sp-name">Anthropic Claude</div><div class="sp-desc">Topic extraction · briefing · significance gating</div></div>
+    <div class="sp-card"><div class="sp-name">Apify</div><div class="sp-desc">rag-web-browser · quality-first article scraping</div></div>
+    <div class="sp-card"><div class="sp-name">Scalekit</div><div class="sp-desc">OAuth 2.1 MCP Auth · Token Vault</div></div>
+    <div class="sp-card"><div class="sp-name">Tigris Data</div><div class="sp-desc">S3-compatible global object storage</div></div>
+    <div class="sp-card"><div class="sp-name">Kalibr</div><div class="sp-desc">Agent orchestration · retry · failure detection</div></div>
+    <div class="sp-card"><div class="sp-name">Redis</div><div class="sp-desc">Sub-50ms curiosity graph reads via ZSET</div></div>
+    <div class="sp-card"><div class="sp-name">Render</div><div class="sp-desc">One-click deploy with managed Redis</div></div>
+  </div>
+</div>
+
+</div><!-- /page -->
+
+<footer>Trace — Curiosity OS &nbsp;·&nbsp; Applied Intelligence Hackathon 2026 &nbsp;·&nbsp; Claude · Apify · Scalekit · Tigris Data · Kalibr · Redis · Render</footer>
 
 <script>
-let newsletterData = null;
-let fileCount = 0;
+let newsletterData = null, fileCount = 0;
 
-// ── Card expand/collapse ──────────────────────────────────────────────────────
 function toggleCard(type) {
-  var card = document.getElementById('card-' + type);
-  card.classList.toggle('expanded');
+  document.getElementById('card-' + type).classList.toggle('open');
 }
 
-// All cards start expanded so upload zones are immediately visible
-document.getElementById('card-google').classList.add('expanded');
-document.getElementById('card-youtube').classList.add('expanded');
-document.getElementById('card-chatgpt').classList.add('expanded');
-
-// ── File chosen ───────────────────────────────────────────────────────────────
 function fileChosen(type) {
   const input = document.getElementById('file-' + type);
   const files = Array.from(input.files);
@@ -1134,72 +998,52 @@ function fileChosen(type) {
   const statusEl = document.getElementById('status-' + type);
   const card = document.getElementById('card-' + type);
   if (files.length > 0) {
-    // For google (multi-file), list all names; for others just the one
-    const label = files.length === 1
-      ? '✓ ' + files[0].name
-      : '✓ ' + files.length + ' files: ' + files.map(f => f.name).join(', ');
-    chosenEl.textContent = label;
+    chosenEl.textContent = files.length === 1 ? '✓ ' + files[0].name : '✓ ' + files.length + ' files: ' + files.map(f => f.name).join(', ');
     statusEl.textContent = files.length > 1 ? '✓ ' + files.length + ' files' : '✓ Ready';
-    statusEl.className = 'source-status chosen';
-    card.classList.add('has-file');
+    statusEl.className = 'sc-badge ok';
+    card.classList.add('active');
   } else {
-    chosenEl.textContent = '';
-    statusEl.textContent = 'Optional';
-    statusEl.className = 'source-status';
-    card.classList.remove('has-file');
+    chosenEl.textContent = ''; statusEl.textContent = 'Optional'; statusEl.className = 'sc-badge'; card.classList.remove('active');
   }
-  updateSignalBar();
+  updateSigBar();
 }
 
-function updateSignalBar() {
+function updateSigBar() {
   const types = ['google','youtube','chatgpt'];
-  const count = types.filter(t => document.getElementById('file-' + t).files.length > 0).length;
+  const count = types.filter(t => document.getElementById('file-'+t).files.length > 0).length;
   fileCount = count;
   document.getElementById('sig-fill').style.width = (count / 3 * 100) + '%';
   document.getElementById('sig-count').textContent = count + ' / 3 sources';
 }
 
-// ── Drag-and-drop ─────────────────────────────────────────────────────────────
 ['google','youtube','chatgpt'].forEach(t => {
   const el = document.getElementById('drop-' + t);
-  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
-  el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('over'); });
+  el.addEventListener('dragleave', () => el.classList.remove('over'));
   el.addEventListener('drop', e => {
-    e.preventDefault(); el.classList.remove('drag-over');
+    e.preventDefault(); el.classList.remove('over');
     const dt = e.dataTransfer;
     if (dt.files.length) {
-      // For google, allow multiple dropped files; for others take the first
       if (t === 'google') {
-        // DataTransfer.files is read-only — we can't directly assign multiple
-        // dropped files to an input. Use a workaround via DataTransfer API.
-        try {
-          const dta = new DataTransfer();
-          Array.from(dt.files).forEach(f => dta.items.add(f));
-          document.getElementById('file-' + t).files = dta.files;
-        } catch {
-          document.getElementById('file-' + t).files = dt.files;
-        }
-      } else {
-        document.getElementById('file-' + t).files = dt.files;
-      }
+        try { const dta = new DataTransfer(); Array.from(dt.files).forEach(f => dta.items.add(f)); document.getElementById('file-'+t).files = dta.files; }
+        catch { document.getElementById('file-'+t).files = dt.files; }
+      } else { document.getElementById('file-'+t).files = dt.files; }
       fileChosen(t);
     }
   });
 });
 
-// ── Stage ticker ──────────────────────────────────────────────────────────────
 const STAGE_MSGS = [
   'Reading your history and signals…',
-  'Clustering curiosity topics with Claude — this takes 20–40s…',
+  'Clustering curiosity topics with Claude — 20-40 seconds…',
   'Fetching fresh articles from arXiv, Hacker News & web…',
-  'Assembling your personalised context window…',
+  'Assembling personalised context window…',
   'Writing your newsletter with Claude…',
   'Still working — large histories can take up to 2 minutes…',
-  'Almost there — finalising your newsletter…',
+  'Almost there — finalising…',
 ];
-const STAGE_DELAYS = [3000, 18000, 15000, 5000, 15000, 20000, 20000];
-let stageIdx = 0;
-let stageTimer;
+const STAGE_DELAYS = [3000,18000,15000,5000,15000,20000,20000];
+let stageIdx = 0, stageTimer;
 
 function tickStage() {
   if (stageIdx < STAGE_MSGS.length) {
@@ -1211,308 +1055,198 @@ function tickStage() {
     stageTimer = setTimeout(tickStage, 20000);
   }
 }
-
 function stopStages() { clearTimeout(stageTimer); stageIdx = 0; }
 
-function setLoading(loading) {
-  document.getElementById('gen-btn').style.display = loading ? 'none' : 'block';
-  document.getElementById('loading-wrap').style.display = loading ? 'flex' : 'none';
-  if (!loading) document.getElementById('stage-msg').className = 'stage-msg';
+function setLoading(on) {
+  document.getElementById('gen-btn').style.display = on ? 'none' : 'block';
+  const w = document.getElementById('loading-wrap');
+  w.style.display = on ? 'flex' : 'none';
+  if (on) w.style.flexDirection = 'column';
+  if (!on) document.getElementById('stage-msg').className = 'stage-msg';
 }
 
 function setError(msg) {
   const el = document.getElementById('stage-msg');
-  el.textContent = msg;
-  el.className = 'stage-msg error';
+  el.textContent = msg; el.className = 'stage-msg err';
   document.getElementById('loading-wrap').style.display = 'flex';
+  document.getElementById('loading-wrap').style.flexDirection = 'column';
   document.getElementById('gen-btn').style.display = 'block';
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function esc(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
-
 function safeHref(u) {
   if (typeof u !== 'string') return '#';
   const l = u.toLowerCase();
   return (l.startsWith('http://') || l.startsWith('https://')) ? u : '#';
 }
-
 function sourceBadge(url) {
-  if (url.includes('arxiv.org')) return '<span class="src-badge src-arxiv">arXiv</span>';
-  if (url.includes('ycombinator.com')) return '<span class="src-badge src-hn">HN</span>';
-  return '<span class="src-badge src-web">Web</span>';
+  if (url.includes('arxiv.org')) return '<span class="spill sp-arxiv">arXiv</span>';
+  if (url.includes('ycombinator.com')) return '<span class="spill sp-hn">HN</span>';
+  return '<span class="spill sp-web">Web</span>';
 }
-
-function badgeClass(type) { return 'section-badge badge-' + (type || 'weekly_topics'); }
-
-function badgeLabel(type) {
-  return { weekly_topics: 'This Week', curiosity_debt: 'Curiosity Debt', rabbit_hole: 'Rabbit Hole' }[type] || type;
-}
-
-// Split content on blank lines into separate <p> tags
+function badgeClass(type) { return 'nl-badge badge-' + (type || 'weekly_topics'); }
+function badgeLabel(type) { return {weekly_topics:'This Week',curiosity_debt:'Curiosity Debt',rabbit_hole:'Rabbit Hole'}[type] || type; }
 function fmtContent(text) {
-  var parts = String(text).split('\\n\\n').map(function(p) { return p.trim(); }).filter(Boolean);
-  if (parts.length === 0) return '<p>' + esc(String(text).trim()) + '</p>';
-  return parts.map(function(p) { return '<p>' + esc(p) + '</p>'; }).join('');
+  const parts = String(text).split('\\n\\n').map(p => p.trim()).filter(Boolean);
+  return parts.length ? parts.map(p => '<p>'+esc(p)+'</p>').join('') : '<p>'+esc(String(text).trim())+'</p>';
 }
-
 function downloadBlob(content, filename, mime) {
-  const blob = new Blob([content], { type: mime });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  const blob = new Blob([content],{type:mime}), a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename; a.click(); URL.revokeObjectURL(a.href);
 }
-
 function downloadHtml() {
   if (!newsletterData) return;
-  const subj = newsletterData.subject_line.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-  downloadBlob(newsletterData.html, `trace-${subj}.html`, 'text/html');
+  downloadBlob(newsletterData.html, 'trace-'+newsletterData.subject_line.replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'.html','text/html');
 }
-
 function downloadText() {
   if (!newsletterData) return;
-  const subj = newsletterData.subject_line.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-  downloadBlob(newsletterData.plain_text, `trace-${subj}.txt`, 'text/plain');
+  downloadBlob(newsletterData.plain_text, 'trace-'+newsletterData.subject_line.replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'.txt','text/plain');
 }
 
-// ── Regenerate ────────────────────────────────────────────────────────────────
 async function regenerate() {
-  if (!newsletterData || !newsletterData.profile_id) return;
+  if (!newsletterData?.profile_id) return;
   const btn = document.getElementById('regen-btn');
   if (btn) btn.disabled = true;
   document.getElementById('result').style.display = 'none';
-  setLoading(true);
-  stageIdx = 0;
-  tickStage();
+  setLoading(true); stageIdx = 0; tickStage();
   try {
-    const r = await fetch('/newsletter/regenerate/' + encodeURIComponent(newsletterData.profile_id), { method: 'POST' });
-    if (!r.ok) {
-      let msg = 'Regeneration failed';
-      try { const ej = await r.json(); msg = ej.detail || msg; } catch (_e) { try { msg = await r.text(); } catch (_e2) {} }
-      throw new Error(msg);
-    }
-    const data = await r.json();
-    stopStages();
-    setLoading(false);
-    renderNewsletter(data);
-  } catch (err) {
-    stopStages();
-    setLoading(false);
-    setError('Error: ' + err.message);
+    const r = await fetch('/newsletter/regenerate/'+encodeURIComponent(newsletterData.profile_id),{method:'POST'});
+    if (!r.ok) { let msg='Regeneration failed'; try{const e=await r.json();msg=e.detail||msg;}catch{}throw new Error(msg); }
+    stopStages(); setLoading(false); renderNewsletter(await r.json());
+  } catch(err) {
+    stopStages(); setLoading(false); setError('Error: '+err.message);
     if (btn) btn.disabled = false;
     document.getElementById('result').style.display = 'block';
   }
 }
 
-// ── Render newsletter ─────────────────────────────────────────────────────────
 function renderNewsletter(data) {
   newsletterData = data;
   document.getElementById('subject').textContent = data.subject_line;
   const dt = new Date(data.generated_at);
-  const forStr = data.generated_for ? ' · for ' + data.generated_for : '';
-  document.getElementById('meta').textContent = dt.toLocaleString() + forStr;
+  document.getElementById('meta').textContent = dt.toLocaleString() + (data.generated_for ? ' · for '+data.generated_for : '');
 
-  // Curiosity profile chips
   const profileEl = document.getElementById('curiosity-profile');
-  if (data.topic_names && data.topic_names.length > 0) {
+  if (data.topic_names?.length) {
     const scores = data.topic_scores || [];
-    const chips = data.topic_names.map((t, i) => {
-      const s = scores[i] != null ? scores[i] : 0;
-      const bg  = (0.12 + 0.33 * s).toFixed(2);
-      const bdr = (0.20 + 0.55 * s).toFixed(2);
-      const tip = scores[i] != null ? ` title="Curiosity strength: ${Math.round(s*100)}%"` : '';
-      return `<span class="topic-chip"${tip} style="background:rgba(99,102,241,${bg});border-color:rgba(99,102,241,${bdr})">${esc(t)}</span>`;
+    const chips = data.topic_names.map((t,i) => {
+      const s = scores[i]??0, tip = scores[i]!=null ? ` title="Curiosity strength: ${Math.round(s*100)}%"` : '';
+      return `<span class="chip"${tip}>${esc(t)}</span>`;
     }).join('');
-    const regenHtml = data.profile_id ? `
-      <div class="regen-bar">
-        <button class="btn-regen" id="regen-btn" onclick="regenerate()">↺ Regenerate with today's articles</button>
-        <span class="regen-link">Bookmark: <a href="/newsletter/regenerate/${esc(data.profile_id)}" onclick="return false;">/regenerate/${esc(data.profile_id.substring(0,8))}…</a></span>
-      </div>` : '';
-    profileEl.innerHTML = `<div class="curiosity-profile">
-      <div class="profile-label">Curiosity Profile · ${data.topic_names.length} topic${data.topic_names.length !== 1 ? 's' : ''} inferred</div>
-      <div class="topic-chips">${chips}</div>
-      ${regenHtml}
-    </div>`;
-  } else {
-    profileEl.innerHTML = '';
-  }
+    const regenHtml = data.profile_id ? `<div class="regen-row mt1">
+      <button class="btn btn-ghost btn-sm" id="regen-btn" onclick="regenerate()">↺ Regenerate with today's articles</button>
+      <span class="regen-lnk">Bookmark: <a href="/newsletter/regenerate/${esc(data.profile_id)}" onclick="return false">/regenerate/${esc(data.profile_id.substring(0,8))}…</a></span>
+    </div>` : '';
+    profileEl.innerHTML = `<div style="margin-bottom:0.7rem">
+      <div style="font-size:0.6rem;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:var(--green);margin-bottom:0.5rem">Curiosity Profile · ${data.topic_names.length} topic${data.topic_names.length!==1?'s':''} inferred</div>
+      <div class="chips">${chips}</div>${regenHtml}</div>`;
+  } else { profileEl.innerHTML = ''; }
 
-  // Share link
-  const shareCont = document.getElementById('share-link-container');
-  shareCont.innerHTML = data.id
-    ? `<span class="share-link">Permalink: <a href="/newsletter/${esc(data.id)}" target="_blank">/newsletter/${esc(data.id)}</a></span>`
-    : '';
+  const sc = document.getElementById('share-link-container');
+  sc.innerHTML = data.id ? `<span style="font-size:0.7rem;color:var(--t3)">Permalink: <a href="/newsletter/${esc(data.id)}" target="_blank">/newsletter/${esc(data.id)}</a></span>` : '';
 
-  // Table of contents
   const tocEl = document.getElementById('toc');
-  if (data.sections && data.sections.length > 1) {
-    const items = data.sections.map((s, i) =>
-      `<li><a href="#section-${i}">${esc(s.title)}</a></li>`
-    ).join('');
-    tocEl.innerHTML = `<div class="toc"><div class="toc-label">In this issue</div><ol>${items}</ol></div>`;
-  } else {
-    tocEl.innerHTML = '';
-  }
+  if (data.sections?.length > 1) {
+    tocEl.innerHTML = `<div class="toc-box"><div class="toc-lbl">In this issue</div><ol>${data.sections.map((s,i)=>`<li><a href="#section-${i}">${esc(s.title)}</a></li>`).join('')}</ol></div>`;
+  } else tocEl.innerHTML = '';
 
-  // Sections
   const secEl = document.getElementById('sections');
   secEl.innerHTML = '';
   data.sections.forEach((s, i) => {
     const div = document.createElement('div');
-    div.className = 'section';
-    div.id = `section-${i}`;
-    const urls = (s.source_urls || []).map(u => {
-      const href = esc(safeHref(u));
-      return `<a href="${href}" target="_blank" rel="noopener noreferrer">${sourceBadge(u)}<span class="link-text">${esc(u)}</span></a>`;
-    }).join('');
-    div.innerHTML = `
-      <div class="section-meta">
-        <span class="${badgeClass(s.section_type)}">${esc(badgeLabel(s.section_type))}</span>
-      </div>
+    div.className = 'nls'; div.id = 'section-'+i;
+    const urls = (s.source_urls||[]).map(u => `<a href="${esc(safeHref(u))}" target="_blank" rel="noopener noreferrer">${sourceBadge(u)}<span class="slink">${esc(u)}</span></a>`).join('');
+    div.innerHTML = `<span class="${badgeClass(s.section_type)}">${esc(badgeLabel(s.section_type))}</span>
       <h3>${esc(s.title)}</h3>
-      <div class="content-body">${fmtContent(s.content)}</div>
-      ${urls ? '<div class="sources">' + urls + '</div>' : ''}
-      <details class="audit">
-        <summary>Why this section?</summary>
-        <div class="audit-body">${esc(s.audit_reasoning)}</div>
-      </details>`;
+      <div class="nl-body">${fmtContent(s.content)}</div>
+      ${urls?'<div class="srcs">'+urls+'</div>':''}
+      <details class="why"><summary>Why this section?</summary><div class="why-body">${esc(s.audit_reasoning)}</div></details>`;
     secEl.appendChild(div);
   });
 
-  // Errors
   const errBox = document.getElementById('errors-container');
-  errBox.innerHTML = '';
-  if (data.errors && data.errors.length) {
-    errBox.innerHTML = `<div class="errors-box"><h4>Non-fatal warnings (${data.errors.length})</h4><ul>${
-      data.errors.map(e => '<li>' + esc(e) + '</li>').join('')
-    }</ul></div>`;
-  }
+  errBox.innerHTML = (data.errors?.length) ? `<div class="err-box"><h4>Non-fatal warnings (${data.errors.length})</h4><ul>${data.errors.map(e=>'<li>'+esc(e)+'</li>').join('')}</ul></div>` : '';
 
   const resultEl = document.getElementById('result');
   resultEl.style.display = 'block';
-  resultEl.scrollIntoView({ behavior: 'smooth' });
+  resultEl.scrollIntoView({behavior:'smooth'});
 }
 
-// ── Generate ──────────────────────────────────────────────────────────────────
 async function generate() {
-  const googleFiles = Array.from(document.getElementById('file-google').files);
-  const youtubeFiles = Array.from(document.getElementById('file-youtube').files);
-  const chatgptFiles = Array.from(document.getElementById('file-chatgpt').files);
-
-  if (googleFiles.length === 0 && youtubeFiles.length === 0 && chatgptFiles.length === 0) {
+  const gf = Array.from(document.getElementById('file-google').files);
+  const yf = Array.from(document.getElementById('file-youtube').files);
+  const cf = Array.from(document.getElementById('file-chatgpt').files);
+  if (!gf.length && !yf.length && !cf.length) {
     setError('Please upload at least one file first.');
     document.getElementById('loading-wrap').style.display = 'flex';
+    document.getElementById('loading-wrap').style.flexDirection = 'column';
     return;
   }
-
   document.getElementById('result').style.display = 'none';
-  setLoading(true);
-  stageIdx = 0;
-  tickStage();
-
+  setLoading(true); stageIdx = 0; tickStage();
   try {
-    // Upload all Chrome/Google history files (may be multiple ZIPs or JSONs)
-    const historyUploadIds = [];
-    for (const f of googleFiles) {
-      const fd = new FormData();
-      fd.append('file', f);
-      fd.append('file_type', 'history');  // explicit — bypass filename heuristic
-      const r = await fetch('/upload', { method: 'POST', body: fd });
-      if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Upload failed: ' + f.name); }
-      historyUploadIds.push((await r.json()).upload_id);
+    const histIds = [];
+    for (const f of gf) {
+      const fd = new FormData(); fd.append('file',f); fd.append('file_type','history');
+      const r = await fetch('/upload',{method:'POST',body:fd});
+      if (!r.ok) { const e=await r.json(); throw new Error(e.detail||'Upload failed: '+f.name); }
+      histIds.push((await r.json()).upload_id);
     }
-
-    let youtubeUploadId = null;
-    if (youtubeFiles[0]) {
-      const fd = new FormData();
-      fd.append('file', youtubeFiles[0]);
-      fd.append('file_type', 'youtube');
-      const r = await fetch('/upload', { method: 'POST', body: fd });
-      if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Upload failed'); }
-      youtubeUploadId = (await r.json()).upload_id;
+    let ytId=null, cgId=null;
+    if (yf[0]) {
+      const fd=new FormData(); fd.append('file',yf[0]); fd.append('file_type','youtube');
+      const r=await fetch('/upload',{method:'POST',body:fd});
+      if (!r.ok) { const e=await r.json(); throw new Error(e.detail||'Upload failed'); }
+      ytId=(await r.json()).upload_id;
     }
-
-    let chatgptUploadId = null;
-    if (chatgptFiles[0]) {
-      const fd = new FormData();
-      fd.append('file', chatgptFiles[0]);
-      fd.append('file_type', 'chatgpt');
-      const r = await fetch('/upload', { method: 'POST', body: fd });
-      if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Upload failed'); }
-      chatgptUploadId = (await r.json()).upload_id;
+    if (cf[0]) {
+      const fd=new FormData(); fd.append('file',cf[0]); fd.append('file_type','chatgpt');
+      const r=await fetch('/upload',{method:'POST',body:fd});
+      if (!r.ok) { const e=await r.json(); throw new Error(e.detail||'Upload failed'); }
+      cgId=(await r.json()).upload_id;
     }
-
-    const body = {};
-    if (historyUploadIds.length > 0) body.history_upload_ids = historyUploadIds;
-    if (youtubeUploadId) body.youtube_upload_id = youtubeUploadId;
-    if (chatgptUploadId) body.chatgpt_upload_id = chatgptUploadId;
-
-    const r2 = await fetch('/newsletter/from-upload', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    const body={};
+    if (histIds.length) body.history_upload_ids=histIds;
+    if (ytId) body.youtube_upload_id=ytId;
+    if (cgId) body.chatgpt_upload_id=cgId;
+    const r2=await fetch('/newsletter/from-upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if (!r2.ok) {
-      let msg = 'Generation failed';
-      try { const ej2 = await r2.json(); msg = ej2.detail || msg; } catch (_e) { try { msg = await r2.text(); } catch (_e2) {} }
+      let msg='Generation failed';
+      try{const ej=await r2.json();msg=ej.detail||msg;}catch{try{msg=await r2.text();}catch{}}
       throw new Error(msg);
     }
-    const data = await r2.json();
-    stopStages();
-    setLoading(false);
-    renderNewsletter(data);
-  } catch (err) {
-    stopStages();
-    setLoading(false);
-    setError('Error: ' + err.message);
-  }
+    stopStages(); setLoading(false); renderNewsletter(await r2.json());
+  } catch(err) { stopStages(); setLoading(false); setError('Error: '+err.message); }
 }
 
-// ── Scalekit Connect Service ───────────────────────────────────────────────────
 async function connectService(connectionName) {
-  const statusEl = document.getElementById(connectionName + '-status');
-  if (statusEl) statusEl.textContent = 'Connecting…';
+  const st = document.getElementById(connectionName+'-status');
+  if (st) st.textContent = 'Connecting…';
   try {
-    const r = await fetch('/auth/connect?connection_name=' + encodeURIComponent(connectionName));
-    const data = await r.json();
-    if (data.link) {
-      window.open(data.link, '_blank', 'width=600,height=700');
-      if (statusEl) statusEl.textContent = '⟳ Complete in popup';
-    } else if (data.status === 'connector_not_found') {
-      if (statusEl) statusEl.textContent = '⚠ Connector not set up in Scalekit dashboard yet';
-    } else if (data.message) {
-      if (statusEl) statusEl.textContent = data.message.slice(0, 70);
-    } else {
-      if (statusEl) statusEl.textContent = 'No link returned';
-    }
-  } catch (err) {
-    if (statusEl) statusEl.textContent = 'Error: ' + err.message.slice(0, 50);
-  }
+    const r = await fetch('/auth/connect?connection_name='+encodeURIComponent(connectionName));
+    const d = await r.json();
+    if (d.link) { window.open(d.link,'_blank','width=600,height=700'); if(st) st.textContent='⟳ Complete in popup'; }
+    else if (d.status==='connector_not_found') { if(st) st.textContent='⚠ Not configured in Scalekit'; }
+    else if (d.message) { if(st) st.textContent=d.message.slice(0,70); }
+    else { if(st) st.textContent='No link returned'; }
+  } catch(err) { if(st) st.textContent='Error: '+err.message.slice(0,50); }
 }
 
-// ── Demo Control Panel ────────────────────────────────────────────────────────
 function demoLog(msg) {
   const el = document.getElementById('demo-output');
   if (!el) return;
-  const ts = new Date().toISOString().slice(11, 19);
-  el.textContent = '[' + ts + '] ' + msg + '\n' + el.textContent;
+  const ts = new Date().toISOString().slice(11,19);
+  el.textContent = '['+ts+'] '+msg+'\n'+el.textContent;
 }
 
 async function _fetchJson(url, opts) {
-  const r = await fetch(url, opts || {});
+  const r = await fetch(url, opts||{});
   if (!r.ok) {
-    let detail = '';
-    try { const e = await r.json(); detail = e.detail || JSON.stringify(e); } catch(_){}
-    throw new Error('HTTP ' + r.status + (detail ? ': ' + detail : ''));
+    let detail='';
+    try{const e=await r.json();detail=e.detail||JSON.stringify(e);}catch{}
+    throw new Error('HTTP '+r.status+(detail?': '+detail:''));
   }
   return r.json();
 }
@@ -1520,117 +1254,82 @@ async function _fetchJson(url, opts) {
 async function seedDemo() {
   demoLog('Seeding demo profile with ML/robotics curiosity graph...');
   try {
-    const d = await _fetchJson('/demo/seed', {method: 'POST'});
-    demoLog('✅ Seeded ' + d.topic_count + ' topics | profile=' + d.profile_id);
-    demoLog('   Topics: ' + (d.topics || []).join(', '));
-    demoLog('   → Now click "Run Autonomous Loop Now" to see agent in action');
-  } catch(e) { demoLog('❌ Seed failed: ' + e.message); }
+    const d = await _fetchJson('/demo/seed',{method:'POST'});
+    demoLog('✅ Seeded '+d.topic_count+' topics | profile='+d.profile_id);
+    demoLog('   Topics: '+(d.topics||[]).join(', '));
+    demoLog('   → Now click "Run Autonomous Loop" to see the agent in action');
+  } catch(e) { demoLog('❌ Seed failed: '+e.message); }
 }
 
 async function runLoopNow() {
   demoLog('▶ Running pattern detection + autonomous dispatch...');
   const btn = document.querySelector('[onclick="runLoopNow()"]');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Running...'; }
+  if (btn) { btn.disabled=true; btn.textContent='⏳ Running...'; }
   try {
-    const d = await _fetchJson('/demo/run-detect', {method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({profile_id: 'demo'})
-    });
-    demoLog('🔍 Patterns detected: ' + d.patterns_detected + ' | Actions dispatched: ' + d.actions_dispatched);
-    if (d.patterns && d.patterns.length > 0) {
-      d.patterns.forEach(p => demoLog('  📌 ' + p.pattern + ' → "' + p.topic + '" (score=' + p.score + ')'));
-    } else {
-      demoLog('  ℹ No new patterns — try clicking again or seeding first');
-    }
-    if (d.actions && d.actions.length > 0) {
+    const d = await _fetchJson('/demo/run-detect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile_id:'demo'})});
+    demoLog('🔍 Patterns: '+d.patterns_detected+' | Actions: '+d.actions_dispatched);
+    if (d.patterns?.length) d.patterns.forEach(p=>demoLog('  📌 '+p.pattern+' → "'+p.topic+'" (score='+p.score+')'));
+    else demoLog('  ℹ No new patterns — seed the demo profile first');
+    if (d.actions?.length) {
       demoLog('⚡ Agent actions:');
       d.actions.forEach(a => {
-        const status = a.status || '?';
-        const icon = status === 'sent' ? '✅' : status === 'created' ? '✅' : status === 'queued_for_approval' ? '📬' : status === 'stub' ? '🔵' : '⚠️';
-        demoLog('  ' + icon + ' ' + (a.action_type || a.via || status) + (a.topic || a.title ? ' — ' + (a.topic || (a.title||'').slice(0,40)) : ''));
+        const s=a.status||'?', icon=s==='sent'||s==='created'?'✅':s==='queued_for_approval'?'📬':s==='stub'?'🔵':'⚠️';
+        demoLog('  '+icon+' '+(a.action_type||a.via||s)+(a.topic||a.title?' — '+(a.topic||(a.title||'').slice(0,40)):''));
       });
     }
-    // Auto-refresh approvals.
-    setTimeout(checkApprovals, 300);
-  } catch(e) {
-    demoLog('❌ Detect failed: ' + e.message + ' — did you seed the demo profile first?');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '2. Run Autonomous Loop Now ▶'; }
-  }
+    setTimeout(checkApprovals,300);
+  } catch(e) { demoLog('❌ Detect failed: '+e.message+' — seed the demo profile first?'); }
+  finally { if (btn) { btn.disabled=false; btn.textContent='2. Run Autonomous Loop ▶'; } }
 }
 
 async function loadGraph() {
   demoLog('Loading curiosity graph...');
   try {
-    // Try demo profile first, fall back to default (real newsletter data)
     let d = await _fetchJson('/graph.json?profile_id=demo');
-    if (!d.nodes || d.nodes.length === 0) {
-      demoLog('Demo profile empty — trying default profile...');
-      d = await _fetchJson('/graph.json?profile_id=default');
-    }
-    if (!d.nodes || d.nodes.length === 0) {
-      demoLog('⚠️ No graph data found. Generate a newsletter or seed the demo first.');
-      return;
-    }
-    const s = d.stats || {};
-    demoLog('📊 Graph: ' + (s.node_count||0) + ' nodes · ' + (s.link_count||0) + ' semantic edges · ' + (s.community_count||0) + ' communities · profile=' + d.profile_id);
-    // Show card FIRST so the container has real pixel dimensions, THEN render
-    const card = document.getElementById('graph-card');
-    card.style.display = '';
-    // requestAnimationFrame ensures offsetWidth is non-zero before force layout
-    requestAnimationFrame(() => {
-      try { renderD3Graph(d); }
-      catch(err) { demoLog('❌ Graph render error: ' + err.message); console.error(err); }
-    });
-  } catch(e) { demoLog('❌ Graph load failed: ' + e.message); }
+    if (!d.nodes?.length) { demoLog('Demo empty — trying default...'); d = await _fetchJson('/graph.json?profile_id=default'); }
+    if (!d.nodes?.length) { demoLog('⚠️ No graph data. Seed the demo profile first.'); return; }
+    const s=d.stats||{};
+    demoLog('📊 Graph: '+(s.node_count||0)+' nodes · '+(s.link_count||0)+' edges · '+(s.community_count||0)+' communities');
+    const card=document.getElementById('graph-card');
+    card.style.display='';
+    requestAnimationFrame(() => { try { renderD3Graph(d); } catch(err) { demoLog('❌ Graph render error: '+err.message); } });
+  } catch(e) { demoLog('❌ Graph load failed: '+e.message); }
 }
 
 async function checkApprovals() {
   try {
     const d = await _fetchJson('/approvals?profile_id=demo');
-    demoLog('📬 Pending approvals: ' + d.count + (d.count === 0 ? ' — run the loop first' : ''));
-    if (d.count > 0) {
-      document.getElementById('approvals-card').style.display = '';
-      renderApprovals(d.pending);
-    }
-  } catch(e) { demoLog('❌ Approvals check failed: ' + e.message); }
+    demoLog('📬 Pending approvals: '+d.count+(d.count===0?' — run the loop first':''));
+    if (d.count > 0) { document.getElementById('approvals-card').style.display=''; renderApprovals(d.pending); }
+  } catch(e) { demoLog('❌ Approvals check failed: '+e.message); }
 }
 
-// ── Live loop status bar ───────────────────────────────────────────────────────
+function _syncDot(data, dotId, textId, nextId) {
+  const dot=document.getElementById(dotId), txt=document.getElementById(textId), nxt=document.getElementById(nextId);
+  if (!dot||!txt) return;
+  if (data.enabled && data.running) {
+    dot.className='sdot live';
+    txt.style.color='var(--green)'; txt.textContent='⚡ Loop running'+(data.demo_mode?' · DEMO (30s)':' · production');
+    const j=(data.jobs||[]).find(j=>j.id==='detect_and_act');
+    if (j?.next_run && nxt) { const s=Math.max(0,Math.round((new Date(j.next_run)-Date.now())/1000)); nxt.textContent='next in '+s+'s'; }
+  } else if (data.enabled) {
+    dot.className='sdot'; dot.style.background='var(--yellow)';
+    txt.style.color='var(--yellow)'; txt.textContent='⏸ Scheduler paused';
+    if (nxt) nxt.textContent='';
+  } else {
+    dot.className='sdot'; dot.style.background='var(--t3)';
+    txt.style.color='var(--t2)'; txt.textContent='○ Loop disabled — use manual trigger above';
+    if (nxt) nxt.textContent='';
+  }
+}
+
 async function refreshLoopStatus() {
   try {
     const d = await _fetchJson('/agent/status');
-    const dot = document.getElementById('loop-dot');
-    const txt = document.getElementById('loop-status-text');
-    const nxt = document.getElementById('loop-next-run');
-    if (!dot || !txt) return;
-    if (d.enabled && d.running) {
-      dot.style.background = '#10b981';
-      const mode = d.demo_mode ? ' · DEMO_MODE (30s intervals)' : ' · production intervals';
-      txt.style.color = '#10b981';
-      txt.textContent = '⚡ Autonomous loop RUNNING' + mode;
-      const detectJob = (d.jobs || []).find(j => j.id === 'detect_and_act');
-      if (detectJob && detectJob.next_run) {
-        const secs = Math.max(0, Math.round((new Date(detectJob.next_run) - Date.now()) / 1000));
-        nxt.textContent = 'next detect in ' + secs + 's';
-      }
-    } else if (d.enabled) {
-      dot.style.background = '#f59e0b';
-      txt.style.color = '#f59e0b';
-      txt.textContent = '⏸ Scheduler built but not running';
-      nxt.textContent = '';
-    } else {
-      dot.style.background = '#ef4444';
-      txt.style.color = '#94a3b8';
-      txt.textContent = '⚠ Autonomous loop disabled — use "Run Autonomous Loop Now" for on-demand detection';
-      nxt.textContent = '';
-    }
-  } catch(_) {
-    const txt = document.getElementById('loop-status-text');
-    if (txt) txt.textContent = 'Could not reach /agent/status';
-  }
+    _syncDot(d,'loop-dot','loop-status-text','loop-next-run');
+    _syncDot(d,'loop-dot-demo','loop-status-text-demo','loop-next-run-demo');
+  } catch { const t=document.getElementById('loop-status-text'); if(t) t.textContent='Could not reach /agent/status'; }
 }
-// Poll status every 5 seconds.
 refreshLoopStatus();
 setInterval(refreshLoopStatus, 5000);
 
@@ -1638,145 +1337,115 @@ function renderApprovals(items) {
   const el = document.getElementById('approvals-list');
   if (!el) return;
   el.innerHTML = items.map(a => `
-    <div style="background:var(--surface2,#1e293b);border:1px solid #475569;border-radius:8px;padding:0.8rem;margin-bottom:0.6rem;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.4rem;">
-        <strong style="color:#f1f5f9;font-size:0.85rem;">${a.title}</strong>
-        <span style="background:#334155;color:#94a3b8;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem;">${a.action_type}</span>
+    <div class="ap-card">
+      <div class="ap-hdr"><div class="ap-title">${esc(a.title)}</div><div class="ap-type">${esc(a.action_type)}</div></div>
+      <div class="ap-prev">${esc((a.preview||'').slice(0,200))}${(a.preview||'').length>200?'…':''}</div>
+      <div class="ap-btns">
+        <button class="btn btn-g btn-sm" onclick="approveAction('${esc(a.id)}')">✓ Approve</button>
+        <button class="btn btn-r btn-sm" onclick="rejectAction('${esc(a.id)}')">✗ Reject</button>
       </div>
-      <div style="color:var(--muted);font-size:0.75rem;margin-bottom:0.6rem;">${a.preview.slice(0,200)}...</div>
-      <div style="display:flex;gap:0.5rem;">
-        <button onclick="approveAction('${a.id}')" style="background:#10b981;color:#fff;border:none;border-radius:5px;padding:0.3rem 0.7rem;cursor:pointer;font-size:0.78rem;">✓ Approve</button>
-        <button onclick="rejectAction('${a.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:5px;padding:0.3rem 0.7rem;cursor:pointer;font-size:0.78rem;">✗ Reject</button>
-      </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 async function approveAction(id) {
-  demoLog('Approving action ' + id.slice(0,8) + '...');
+  demoLog('Approving action '+id.slice(0,8)+'...');
   try {
-    const d = await _fetchJson('/approvals/' + id + '/approve', {method: 'POST'});
-    const a = d.action || {};
-    demoLog('✅ Approved: ' + (a.action_type || '?') + ' — ' + (a.title || '').slice(0,50));
+    const d=await _fetchJson('/approvals/'+id+'/approve',{method:'POST'});
+    demoLog('✅ Approved: '+(d.action?.action_type||'?')+' — '+(d.action?.title||'').slice(0,50));
     checkApprovals();
-  } catch(e) { demoLog('❌ Approve failed: ' + e.message); }
+  } catch(e) { demoLog('❌ Approve failed: '+e.message); }
 }
 
 async function rejectAction(id) {
-  demoLog('Rejecting action ' + id.slice(0,8) + '...');
+  demoLog('Rejecting '+id.slice(0,8)+'...');
   try {
-    const d = await _fetchJson('/approvals/' + id + '/reject', {method: 'POST'});
-    const a = d.action || {};
-    demoLog('✗ Rejected: ' + (a.action_type || '?'));
+    const d=await _fetchJson('/approvals/'+id+'/reject',{method:'POST'});
+    demoLog('✗ Rejected: '+(d.action?.action_type||'?'));
     checkApprovals();
-  } catch(e) { demoLog('❌ Reject failed: ' + e.message); }
+  } catch(e) { demoLog('❌ Reject failed: '+e.message); }
 }
 
-// ── D3 Force-Directed Graph ───────────────────────────────────────────────────
 function renderD3Graph(data) {
-  const container = document.getElementById('d3-graph');
+  const container=document.getElementById('d3-graph');
   if (!container) return;
-  container.innerHTML = '';
+  container.innerHTML='';
+  const W=container.offsetWidth||700, H=380;
+  const colors=['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#22d3ee','#f97316','#84cc16'];
 
-  const W = container.offsetWidth || 700, H = 400;
-  const communityColors = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#84cc16'];
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('width',W); svg.setAttribute('height',H); svg.style.cssText='width:100%;height:100%;';
 
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('width', W); svg.setAttribute('height', H);
-  svg.style.cssText = 'width:100%;height:100%;';
+  const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+  const filt=document.createElementNS('http://www.w3.org/2000/svg','filter');
+  filt.setAttribute('id','glow');
+  const feBlur=document.createElementNS('http://www.w3.org/2000/svg','feGaussianBlur');
+  feBlur.setAttribute('stdDeviation','4'); feBlur.setAttribute('result','blur');
+  const feMerge=document.createElementNS('http://www.w3.org/2000/svg','feMerge');
+  const fn1=document.createElementNS('http://www.w3.org/2000/svg','feMergeNode'); fn1.setAttribute('in','blur');
+  const fn2=document.createElementNS('http://www.w3.org/2000/svg','feMergeNode'); fn2.setAttribute('in','SourceGraphic');
+  feMerge.append(fn1,fn2); filt.append(feBlur,feMerge); defs.appendChild(filt); svg.appendChild(defs);
 
-  // Minimal force layout without d3 library (spring simulation).
-  const nodes = data.nodes.map((n, i) => ({
-    ...n,
-    x: W/2 + (Math.random()-0.5)*200,
-    y: H/2 + (Math.random()-0.5)*200,
-    vx: 0, vy: 0, idx: i
-  }));
-  const nodeMap = {};
-  nodes.forEach(n => nodeMap[n.id] = n);
+  const nodes=data.nodes.map((n,i) => ({...n,x:W/2+(Math.random()-0.5)*200,y:H/2+(Math.random()-0.5)*200,vx:0,vy:0}));
+  const nm={}; nodes.forEach(n=>nm[n.id]=n);
 
-  // Simple spring layout: 30 iterations.
-  for (let iter = 0; iter < 60; iter++) {
-    // Repulsion.
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i+1; j < nodes.length; j++) {
-        const dx = nodes[j].x - nodes[i].x, dy = nodes[j].y - nodes[i].y;
-        const dist = Math.sqrt(dx*dx+dy*dy) || 1;
-        const force = 4000 / (dist*dist);
-        nodes[i].vx -= dx/dist*force; nodes[i].vy -= dy/dist*force;
-        nodes[j].vx += dx/dist*force; nodes[j].vy += dy/dist*force;
-      }
+  for (let it=0;it<80;it++) {
+    for (let i=0;i<nodes.length;i++) for (let j=i+1;j<nodes.length;j++) {
+      const dx=nodes[j].x-nodes[i].x, dy=nodes[j].y-nodes[i].y, d=Math.sqrt(dx*dx+dy*dy)||1, f=5000/(d*d);
+      nodes[i].vx-=dx/d*f; nodes[i].vy-=dy/d*f; nodes[j].vx+=dx/d*f; nodes[j].vy+=dy/d*f;
     }
-    // Attraction along edges.
-    data.links.forEach(l => {
-      const a = nodeMap[l.source], b = nodeMap[l.target];
-      if (!a || !b) return;
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const dist = Math.sqrt(dx*dx+dy*dy) || 1;
-      const force = (dist - 100) * 0.03 * l.value;
-      a.vx += dx/dist*force; a.vy += dy/dist*force;
-      b.vx -= dx/dist*force; b.vy -= dy/dist*force;
+    data.links.forEach(l=>{
+      const a=nm[l.source], b=nm[l.target]; if (!a||!b) return;
+      const dx=b.x-a.x, dy=b.y-a.y, d=Math.sqrt(dx*dx+dy*dy)||1, f=(d-100)*0.03*(l.value||0.5);
+      a.vx+=dx/d*f; a.vy+=dy/d*f; b.vx-=dx/d*f; b.vy-=dy/d*f;
     });
-    // Center pull + damping.
-    nodes.forEach(n => {
-      n.vx += (W/2 - n.x) * 0.008; n.vy += (H/2 - n.y) * 0.008;
-      n.vx *= 0.85; n.vy *= 0.85;
-      n.x = Math.max(30, Math.min(W-30, n.x + n.vx));
-      n.y = Math.max(30, Math.min(H-30, n.y + n.vy));
+    nodes.forEach(n=>{
+      n.vx+=(W/2-n.x)*0.01; n.vy+=(H/2-n.y)*0.01;
+      n.vx*=0.82; n.vy*=0.82;
+      n.x=Math.max(40,Math.min(W-40,n.x+n.vx));
+      n.y=Math.max(30,Math.min(H-30,n.y+n.vy));
     });
   }
 
-  // Draw edges.
-  const edgeG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-  data.links.forEach(l => {
-    const a = nodeMap[l.source], b = nodeMap[l.target];
-    if (!a || !b) return;
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
-    line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
-    line.setAttribute('stroke', '#334155');
-    line.setAttribute('stroke-width', Math.max(0.5, l.value * 2));
-    line.setAttribute('opacity', 0.6);
-    edgeG.appendChild(line);
+  const eg=document.createElementNS('http://www.w3.org/2000/svg','g');
+  data.links.forEach(l=>{
+    const a=nm[l.source], b=nm[l.target]; if (!a||!b) return;
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',a.x); line.setAttribute('y1',a.y); line.setAttribute('x2',b.x); line.setAttribute('y2',b.y);
+    line.setAttribute('stroke','rgba(148,163,255,0.1)'); line.setAttribute('stroke-width',Math.max(0.5,(l.value||0.5)*2.5));
+    eg.appendChild(line);
   });
-  svg.appendChild(edgeG);
+  svg.appendChild(eg);
 
-  // Draw nodes.
-  const nodeG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-  nodes.forEach(n => {
-    const score = typeof n.blended_score === 'number' ? n.blended_score : 0.3;
-    const community = typeof n.community === 'number' ? n.community : 0;
-    const radius = Math.max(7, Math.min(22, 7 + score * 30));
-    const color = communityColors[community % communityColors.length];
-    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    g.setAttribute('transform', 'translate('+n.x+','+n.y+')');
-    g.style.cursor = 'pointer';
-
-    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    circle.setAttribute('r', radius); circle.setAttribute('fill', color);
-    circle.setAttribute('opacity', 0.88);
-    circle.setAttribute('stroke', '#fff'); circle.setAttribute('stroke-width', '0.5');
-    circle.setAttribute('stroke-opacity', '0.3');
-
-    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-    title.textContent = n.id + '\nscore: ' + score.toFixed(3) + '\ncommunity: ' + community;
-
-    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    label.setAttribute('dy', radius + 12);
-    label.setAttribute('text-anchor', 'middle');
-    label.setAttribute('fill', '#e2e8f0');
-    label.setAttribute('font-size', '9');
-    label.setAttribute('font-family', 'ui-monospace, monospace');
-    label.textContent = n.id.length > 16 ? n.id.slice(0,15) + '…' : n.id;
-
-    g.appendChild(circle); g.appendChild(title); g.appendChild(label);
-    nodeG.appendChild(g);
+  const ng=document.createElementNS('http://www.w3.org/2000/svg','g');
+  nodes.forEach(n=>{
+    const score=typeof n.blended_score==='number'?n.blended_score:0.3;
+    const community=typeof n.community==='number'?n.community:0;
+    const r=Math.max(5,Math.min(22,5+score*24));
+    const color=colors[community%colors.length];
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.style.cursor='pointer';
+    const glow=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    glow.setAttribute('cx',n.x); glow.setAttribute('cy',n.y); glow.setAttribute('r',r+5);
+    glow.setAttribute('fill',color); glow.setAttribute('opacity','0.13'); glow.setAttribute('filter','url(#glow)');
+    const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx',n.x); c.setAttribute('cy',n.y); c.setAttribute('r',r);
+    c.setAttribute('fill',color); c.setAttribute('opacity','0.88');
+    c.setAttribute('stroke','rgba(255,255,255,0.13)'); c.setAttribute('stroke-width','1');
+    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('x',n.x); lbl.setAttribute('y',n.y+r+12);
+    lbl.setAttribute('text-anchor','middle'); lbl.setAttribute('font-size','8.5');
+    lbl.setAttribute('font-family','Plus Jakarta Sans,sans-serif'); lbl.setAttribute('fill','rgba(200,210,255,0.65)');
+    const name=(n.label||n.id||'');
+    lbl.textContent=name.length>16?name.substring(0,14)+'…':name;
+    const title=document.createElementNS('http://www.w3.org/2000/svg','title');
+    title.textContent=name+(typeof n.blended_score==='number'?' · score: '+n.blended_score.toFixed(3):'');
+    g.append(glow,c,lbl,title);
+    g.addEventListener('mouseenter',()=>{c.setAttribute('opacity','1');c.setAttribute('r',r+2);glow.setAttribute('opacity','0.28')});
+    g.addEventListener('mouseleave',()=>{c.setAttribute('opacity','0.88');c.setAttribute('r',r);glow.setAttribute('opacity','0.13')});
+    ng.appendChild(g);
   });
-  svg.appendChild(nodeG);
+  svg.appendChild(ng);
   container.appendChild(svg);
-
-  const statsEl = document.getElementById('graph-stats');
-  if (statsEl) statsEl.textContent = data.stats.node_count + ' topics · ' + data.stats.link_count + ' semantic edges · ' + data.stats.community_count + ' communities';
 }
 </script>
 </body>

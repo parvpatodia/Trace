@@ -89,7 +89,7 @@ async def _job_poll_gmail() -> None:
             bucket = _pending_signals.setdefault(_DEFAULT_PROFILE, [])
             bucket.extend(signals)
             _log.info("[scheduler] poll_gmail_signals: +%d signals (total pending=%d)", len(signals), len(bucket))
-        except ImportError:
+        except (ImportError, TypeError, AttributeError):
             # Gmail collector not yet built — Phase 2.  Synthesize varied stub signals in DEMO_MODE.
             if _DEMO_MODE:
                 global _demo_gmail_idx
