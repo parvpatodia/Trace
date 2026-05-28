@@ -671,21 +671,6 @@ details.why summary::before{content:"▶  ";font-size:0.56rem}
 details[open].why summary::before{content:"▼  "}
 .why-body{padding:0.7rem;font-size:0.77rem;color:var(--t2);border-top:1px solid var(--border);background:rgba(0,0,0,0.12);line-height:1.6}
 
-/* Rich newsletter card fields */
-.nl-tldr{background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--r-sm);padding:0.65rem 0.85rem;margin-bottom:0.75rem}
-.nl-tldr-lbl{font-size:0.6rem;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:var(--accent-l);margin-bottom:0.35rem}
-.nl-tldr ul{list-style:none;margin:0;padding:0}
-.nl-tldr li{font-size:0.85rem;color:var(--t1);padding:0.18rem 0;line-height:1.55}
-.nl-tldr li::before{content:"• ";color:var(--accent-l)}
-.nl-insight{display:flex;gap:0.6rem;margin:0.75rem 0;padding:0.7rem 0.85rem;background:rgba(16,185,129,0.05);border-left:3px solid var(--green);border-radius:0 var(--r-sm) var(--r-sm) 0}
-.nl-insight-icon{color:var(--green);font-size:1rem;flex-shrink:0;margin-top:0.1rem}
-.nl-insight p{margin:0!important;font-size:0.87rem;color:#c8e6c9!important}
-.nl-why-matters{font-size:0.84rem;color:var(--t2);margin:0.55rem 0;padding:0.5rem 0.75rem;background:rgba(245,158,11,0.05);border-left:2px solid var(--yellow);border-radius:0 4px 4px 0}
-.nl-action{font-size:0.87rem;color:var(--cyan);margin:0.55rem 0;padding:0.5rem 0.75rem;background:rgba(34,211,238,0.05);border-left:2px solid var(--cyan);border-radius:0 4px 4px 0}
-.nl-action-icon{margin-right:0.25rem}
-.nl-conn{font-size:0.82rem;color:var(--t3);margin:0.45rem 0;font-style:italic}
-.nl-conn-icon{color:var(--accent-l);margin-right:0.25rem}
-
 /* Errors */
 .err-box{margin-top:0.9rem;padding:0.75rem 1rem;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.2);border-radius:var(--r-sm);font-size:0.78rem;color:#fca5a5}
 .err-box h4{margin-bottom:0.32rem;font-weight:600}
