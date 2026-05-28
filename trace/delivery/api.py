@@ -997,50 +997,18 @@ details[open] .upload-toggle::before{transform:rotate(90deg)}
   </div>
 </div>
 
-<!-- ── CURIOSITY GRAPH ── -->
-<div class="card" id="graph-card" style="display:none">
-  <div class="clabel"><div class="clabel-dot" style="background:var(--cyan)"></div>Your Curiosity Graph</div>
-  <div id="d3-graph" style="width:100%;height:380px;background:var(--s2);border-radius:var(--r-sm);overflow:hidden"></div>
-  <div class="graph-stats" id="graph-stats">
-    <div class="gs-item"><strong id="gs-nodes">0</strong> topics</div>
-    <div class="gs-item"><strong id="gs-links">0</strong> signals</div>
-    <div class="gs-item"><strong id="gs-comm">0</strong> communities</div>
+<!-- ── GENERATE FROM YOUR OWN DATA ── -->
+<div class="sec-hdr"><h2>Generate From Your Own Data</h2></div>
+<div class="card accent-border" id="upload-section">
+  <div class="clabel"><div class="clabel-dot" style="background:var(--cyan)"></div>Upload Signal Sources — Claude builds a curiosity model from your actual behaviour</div>
+  <div class="privacy" style="margin-bottom:1rem">
+    <strong>Privacy first.</strong> Files are processed once and immediately deleted from the server. Only inferred topic names are stored — never raw browsing or conversation data.
   </div>
-</div>
-
-<!-- ── INTELLIGENCE DIGEST ── -->
-<div id="result" style="display:none">
-  <div style="margin:2rem 0 0.85rem">
-    <div class="digest-header">
-      <h2 class="grad" style="font-size:1.5rem">Your Intelligence Digest</h2>
-      <span class="digest-date" id="meta"></span>
-    </div>
-    <div class="card" style="padding:1.25rem 1.5rem">
-      <div class="res-eyebrow">Curiosity Brief</div>
-      <div class="res-subject" id="subject"></div>
-      <div id="curiosity-profile" class="mt1"></div>
-      <div class="act-row mt1">
-        <button class="btn btn-ghost btn-sm" onclick="downloadHtml()">↓ HTML</button>
-        <button class="btn btn-ghost btn-sm" onclick="downloadText()">↓ Text</button>
-        <span class="ml-auto" id="share-link-container"></span>
-      </div>
-    </div>
-    <div id="toc"></div>
-    <div id="sections"></div>
-    <div id="errors-container"></div>
-
-    <details style="margin-top:1.5rem">
-      <summary class="upload-toggle">Upload your own data to generate a personalised digest</summary>
-      <div style="padding:1rem 0">
-        <div class="privacy" style="margin-bottom:0.85rem">
-          <strong>Your data stays local.</strong> Files are processed once and deleted immediately. Only inferred topic names are stored — never raw browsing or conversation data.
-        </div>
-        <div class="card">
-          <div class="src-list">
-            <div class="sc" id="card-google">
-              <div class="sc-head" onclick="toggleCard('google')">
-                <div class="sc-icon">🌐</div>
-                <div class="sc-info"><div class="sc-name">Chrome / Browser History</div><div class="sc-desc">BrowserHistory.json or Google Takeout ZIP</div></div>
+  <div class="src-list">
+    <div class="sc" id="card-google">
+      <div class="sc-head" onclick="toggleCard('google')">
+        <div class="sc-icon">🌐</div>
+        <div class="sc-info"><div class="sc-name">Chrome / Browser History</div><div class="sc-desc">BrowserHistory.json or Google Takeout ZIP — highest-volume source</div></div>
         <span class="sc-badge" id="status-google">Optional</span>
         <span class="sc-chev">▼</span>
       </div>
@@ -1085,7 +1053,7 @@ details[open] .upload-toggle::before{transform:rotate(90deg)}
     <div class="sc" id="card-chatgpt">
       <div class="sc-head" onclick="toggleCard('chatgpt')">
         <div class="sc-icon">💬</div>
-        <div class="sc-info"><div class="sc-name">ChatGPT Export</div><div class="sc-desc">conversations.json — highest-signal source</div></div>
+        <div class="sc-info"><div class="sc-name">ChatGPT Export</div><div class="sc-desc">conversations.json — most explicit signal source (1.5× weight)</div></div>
         <span class="sc-badge" id="status-chatgpt">Optional</span>
         <span class="sc-chev">▼</span>
       </div>
@@ -1103,25 +1071,56 @@ details[open] .upload-toggle::before{transform:rotate(90deg)}
         </label>
       </div>
     </div>
-          </div>
+  </div>
 
-          <div class="sig-row">
-            <span class="sig-lbl">Signal strength</span>
-            <div class="sig-track"><div class="sig-fill" id="sig-fill"></div></div>
-            <span class="sig-count" id="sig-count">0 / 3 sources</span>
-          </div>
+  <div class="sig-row">
+    <span class="sig-lbl">Signal strength</span>
+    <div class="sig-track"><div class="sig-fill" id="sig-fill"></div></div>
+    <span class="sig-count" id="sig-count">0 / 3 sources</span>
+  </div>
 
-          <div class="mt2">
-            <button class="btn btn-primary btn-full" id="gen-btn" onclick="generate()">Generate Intelligence Digest →</button>
-            <div class="loading-wrap" id="loading-wrap">
-              <div class="spinner"></div>
-              <div class="stage-msg" id="stage-msg">Preparing…</div>
-              <div class="timing-note">Large histories take 1–2 minutes — keep this tab open</div>
-            </div>
-          </div>
-        </div>
+  <div class="mt2">
+    <button class="btn btn-primary btn-full" id="gen-btn" onclick="generate()">Generate Intelligence Digest →</button>
+    <div class="loading-wrap" id="loading-wrap">
+      <div class="spinner"></div>
+      <div class="stage-msg" id="stage-msg">Preparing…</div>
+      <div class="timing-note">Large histories take 1–2 minutes — keep this tab open</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── CURIOSITY GRAPH ── -->
+<div class="card" id="graph-card" style="display:none">
+  <div class="clabel"><div class="clabel-dot" style="background:var(--cyan)"></div>Your Curiosity Graph</div>
+  <div id="d3-graph" style="width:100%;height:380px;background:var(--s2);border-radius:var(--r-sm);overflow:hidden"></div>
+  <div class="graph-stats" id="graph-stats">
+    <div class="gs-item"><strong id="gs-nodes">0</strong> topics</div>
+    <div class="gs-item"><strong id="gs-links">0</strong> signals</div>
+    <div class="gs-item"><strong id="gs-comm">0</strong> communities</div>
+  </div>
+</div>
+
+<!-- ── INTELLIGENCE DIGEST ── -->
+<div id="result" style="display:none">
+  <div style="margin:2rem 0 0.85rem">
+    <div class="digest-header">
+      <h2 class="grad" style="font-size:1.5rem">Your Intelligence Digest</h2>
+      <span class="digest-date" id="meta"></span>
+    </div>
+    <div class="card" style="padding:1.25rem 1.5rem">
+      <div class="res-eyebrow">Curiosity Brief</div>
+      <div class="res-subject" id="subject"></div>
+      <div id="curiosity-profile" class="mt1"></div>
+      <div class="act-row mt1">
+        <button class="btn btn-ghost btn-sm" onclick="downloadHtml()">↓ HTML</button>
+        <button class="btn btn-ghost btn-sm" onclick="downloadText()">↓ Text</button>
+        <span class="ml-auto" id="share-link-container"></span>
       </div>
-    </details>
+    </div>
+    <div id="toc"></div>
+    <div id="sections"></div>
+    <div id="errors-container"></div>
+
   </div>
 </div>
 
