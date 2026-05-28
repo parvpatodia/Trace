@@ -408,20 +408,22 @@ _FRONTEND_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Trace — Curiosity OS</title>
+<title>Trace — Your Personal Intelligence Layer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#04040e;--s1:#0a0a1a;--s2:#0f0f1e;--s3:#161626;
+  --bg:#050510;--s1:#09091a;--s2:#0e0e20;--s3:#14142a;
   --border:rgba(148,163,255,0.07);--border-md:rgba(148,163,255,0.13);--border-hi:rgba(148,163,255,0.22);
   --accent:#7c3aed;--accent-b:#4f46e5;--accent-l:#a78bfa;--accent-glow:rgba(124,58,237,0.18);
-  --cyan:#22d3ee;--green:#10b981;--yellow:#f59e0b;--red:#ef4444;--pink:#f472b6;
+  --cyan:#22d3ee;--green:#10b981;--yellow:#f59e0b;--red:#ef4444;--pink:#ec4899;
   --t1:#f0f0fa;--t2:#9090b8;--t3:#55556a;
   --font:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif;
   --mono:'JetBrains Mono','Fira Code',monospace;
   --r:14px;--r-sm:8px;
+  /* new overrides for enhanced cards */
+  --nl-bg:rgba(255,255,255,0.025);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}

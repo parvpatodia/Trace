@@ -188,10 +188,16 @@ class NewsletterSection(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     title: str = Field(min_length=1)
-    section_type: str = Field(pattern=r"^(weekly_topics|curiosity_debt|rabbit_hole)$")
+    section_type: str = Field(pattern=r"^(weekly_topics|curiosity_debt|rabbit_hole|emerging_spike|bridge_insight)$")
     content: str = Field(min_length=50)
     source_urls: list[str] = Field(default_factory=list)
     audit_reasoning: str = Field(min_length=10)
+    # Rich newsletter fields — populated by the upgraded composer prompt
+    tldr: list[str] = Field(default_factory=list)
+    deep_insight: str = ""
+    why_this_matters: str = ""
+    action_item: str = ""
+    connection: str = ""
 
     @field_validator("audit_reasoning")
     @classmethod
