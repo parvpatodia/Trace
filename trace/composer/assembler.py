@@ -130,7 +130,7 @@ class ContextWindowAssembler:
             chars = _estimate_chars(selected, articles_index)
             if _chars_to_tokens(chars) <= self._token_budget:
                 break
-            non_debt = [t for t in selected if t.debt_score == 0]
+            non_debt = [t for t in selected if t.debt_score < 0.3]
             to_drop = non_debt[-1] if non_debt else selected[-1]
             selected.remove(to_drop)
             del articles_index[to_drop.id]
@@ -140,8 +140,10 @@ class ContextWindowAssembler:
             _estimate_chars(selected, articles_index)
         )
 
-        # 5. Debt topics: only from selected, only those with debt_score > 0
-        debt_topics = tuple(t for t in selected if t.debt_score > 0)
+        # 5. Debt topics: only from selected, only those with significant curiosity debt.
+        # Threshold 0.3 prevents topics with minor debt (e.g. 0.05–0.15) from triggering
+        # a full curiosity_debt section — those are covered in the weekly_topics section.
+        debt_topics = tuple(t for t in selected if t.debt_score >= 0.3)
 
         # 6. Signal samples: read directly from Topic.signal_samples — they were
         #    computed by CuriosityGraphBuilder and travel with the graph through

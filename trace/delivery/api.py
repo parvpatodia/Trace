@@ -56,10 +56,66 @@ from pydantic import BaseModel
 
 from trace.auth.scalekit import UserClaims, _require_client, build_login_url, exchange_code, verify_token
 from trace.config import get_settings
-from trace.models import CuriosityGraph
+from trace.models import CuriosityGraph, RawSignal, SignalSource
 from trace.pipeline.runner import PipelineError, PipelineResult, TracePipeline
+from trace.signals.base import SignalCollector
 
 _log = logging.getLogger(__name__)
+
+
+class _NoOpCollector(SignalCollector):
+    """Stub collector for demo/regen pipelines that skip signal collection."""
+    source = SignalSource.ENTIRE_IO
+
+    async def collect(self) -> list[RawSignal]:
+        return []
+
+
+def _build_regen_pipeline() -> TracePipeline | None:
+    """Build a minimal pipeline for run_from_graph (stages 3-5 only).
+
+    Does NOT require any signal source files on disk — the _NoOpCollector
+    satisfies TracePipeline's validator while run_from_graph never calls
+    _node_collect_signals. Scrapers, assembler, and composer are fully wired.
+    """
+    try:
+        import anthropic
+
+        from trace.composer.assembler import ContextWindowAssembler
+        from trace.composer.newsletter import NewsletterComposer
+        from trace.graph.builder import CuriosityGraphBuilder
+        from trace.graph.extractor import TopicExtractor
+        from trace.scraper.arxiv import ArXivScraper
+        from trace.scraper.hackernews import HackerNewsScraper
+
+        settings = get_settings()
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
+        scrapers: list[Any] = [ArXivScraper(), HackerNewsScraper()]
+        if settings.apify_api_token:
+            try:
+                from trace.scraper.apify import ApifyScraper
+                scrapers.append(ApifyScraper(api_token=settings.apify_api_token))
+            except Exception:
+                pass
+
+        return TracePipeline(
+            collectors=[_NoOpCollector()],
+            scrapers=scrapers,
+            builder=CuriosityGraphBuilder(
+                extractor=TopicExtractor(client=client, model=settings.anthropic_model)
+            ),
+            assembler=ContextWindowAssembler(
+                token_budget=settings.context_token_budget,
+                max_topics=settings.max_topics,
+                max_articles_per_topic=settings.max_articles_per_topic,
+            ),
+            composer=NewsletterComposer(client=client, model=settings.anthropic_model),
+            max_concurrent_scrapers=settings.scraper_max_concurrent,
+        )
+    except Exception as exc:
+        _log.warning("_build_regen_pipeline failed: %s", exc)
+        return None
 
 # In-memory newsletter cache — last 20 newsletters (LRU-style)
 _NEWSLETTER_CACHE: OrderedDict[str, dict] = OrderedDict()
@@ -2185,7 +2241,7 @@ async def regenerate_newsletter(
             detail="Profile not found. Please re-upload your history file.",
         )
 
-    pipeline = _build_pipeline_from_settings()
+    pipeline = _build_regen_pipeline()
     if pipeline is None:
         raise HTTPException(
             status_code=503,
@@ -2552,7 +2608,10 @@ async def demo_generate_newsletter() -> GenerateResponse:
             detail="Demo profile not seeded. Call POST /demo/seed first.",
         )
 
-    pipeline = _build_pipeline_from_settings()
+    # Use _build_regen_pipeline — does NOT require any signal files on disk.
+    # run_from_graph only needs scrapers + assembler + composer; collectors are
+    # satisfied by _NoOpCollector so the TracePipeline constructor doesn't reject it.
+    pipeline = _build_regen_pipeline()
     if pipeline is None:
         raise HTTPException(status_code=503, detail="Pipeline error — check ANTHROPIC_API_KEY")
 
