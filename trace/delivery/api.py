@@ -1473,13 +1473,14 @@ async function generate() {
 
 async function connectService(connectionName) {
   const st = document.getElementById(connectionName+'-status');
-  if (st) st.textContent = 'Connecting…';
+  if (st) st.textContent = 'Checking…';
   try {
     const r = await fetch('/auth/connect?connection_name='+encodeURIComponent(connectionName));
     const d = await r.json();
-    if (d.link) { window.open(d.link,'_blank','width=600,height=700'); if(st) st.textContent='⟳ Complete in popup'; }
-    else if (d.status==='connector_not_found') { if(st) st.textContent='⚠ Not configured in Scalekit'; }
-    else if (d.message) { if(st) st.textContent=d.message.slice(0,70); }
+    if (d.status==='connected') { if(st) { st.textContent=d.message||'✓ Connected'; st.style.color='var(--green)'; } }
+    else if (d.link) { window.open(d.link,'_blank','width=600,height=700'); if(st) st.textContent='⟳ Complete in popup'; }
+    else if (d.status==='connector_not_found') { if(st) st.textContent='⚠ Not configured'; }
+    else if (d.message) { if(st) { st.textContent=d.message.slice(0,80); st.style.color='var(--t3)'; } }
     else { if(st) st.textContent='No link returned'; }
   } catch(err) { if(st) st.textContent='Error: '+err.message.slice(0,50); }
 }
@@ -2367,18 +2368,29 @@ async def auth_connect(
     identifier: str | None = None,
     redirect_url: str | None = None,
 ) -> dict[str, Any]:
-    """Return a Scalekit magic link for the user to connect a third-party account.
+    """Return connection status or OAuth link for a third-party service.
 
-    After the user clicks the link and approves, Scalekit stores their OAuth
-    token in the Token Vault and Trace can call that service on their behalf
-    without ever seeing the raw credentials.
-
-    Example: GET /auth/connect?connection_name=apify-mcp
-    → {"link": "https://auth.yourdomain.scalekit.com/connect/...", "status": "ok"}
+    Gmail uses direct OAuth token from env (no Scalekit required).
+    Other services fall through to Scalekit Token Vault when configured.
     """
-    from trace.auth.scalekit import connect_ensure_account, connect_get_authorization_link
-
     settings = get_settings()
+
+    # Gmail — direct OAuth token, no Scalekit needed
+    if connection_name == "gmail":
+        if settings.gmail_refresh_token and settings.gmail_client_id:
+            return {"status": "connected", "message": "✓ Gmail connected via OAuth token"}
+        return {
+            "status": "unconfigured",
+            "message": "Set GMAIL_REFRESH_TOKEN, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET in .env",
+        }
+
+    # Slack — direct webhook, no Scalekit needed
+    if "slack" in connection_name and settings.slack_webhook_url:
+        return {"status": "connected", "message": "✓ Slack connected via webhook"}
+
+    # Everything else — try Scalekit
+    from trace.auth.scalekit import connect_ensure_account, connect_get_authorization_link, get_scalekit_client
+
     user_id = identifier or settings.scalekit_default_identifier
     await connect_ensure_account(user_id, connection_name)
     link = await connect_get_authorization_link(
@@ -2386,7 +2398,6 @@ async def auth_connect(
         connection_name=connection_name,
         redirect_url=redirect_url,
     )
-    from trace.auth.scalekit import get_scalekit_client
     if not link:
         if get_scalekit_client() is None:
             return {
@@ -2395,8 +2406,7 @@ async def auth_connect(
             }
         return {
             "status": "connector_not_found",
-            "message": f"Connector '{connection_name}' is not registered in your Scalekit workspace. "
-                       f"Go to app.scalekit.com → Connect → Connectors → Add '{connection_name}'.",
+            "message": f"Connector '{connection_name}' not registered in Scalekit workspace.",
         }
     return {"link": link, "status": "ok", "connection_name": connection_name}
 

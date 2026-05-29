@@ -1,23 +1,21 @@
 """
-GmailCollector — reads Gmail signals via Scalekit Token Vault.
+GmailCollector — reads Gmail signals via direct Google OAuth.
 
-WHY SCALEKIT INSTEAD OF DIRECT GMAIL OAUTH:
-  The Gmail OAuth token (refresh token + access token) lives in Scalekit's
-  encrypted Token Vault.  We never store it in env vars or application memory.
-  Every call goes through connect_execute_tool(), which:
-    1. Retrieves the token from the Vault securely.
-    2. Refreshes it transparently when expired.
-    3. Executes the Gmail API call on our behalf.
-    4. Returns structured JSON results.
+Uses GMAIL_REFRESH_TOKEN + GMAIL_CLIENT_ID + GMAIL_CLIENT_SECRET from .env.
+No Scalekit required. Token is refreshed automatically on each collect() call.
+
+Get a refresh token once via OAuth Playground:
+  developers.google.com/oauthplayground
+  → Use your own OAuth credentials → authorize gmail.readonly → exchange code
+  → copy Refresh token → add to .env as GMAIL_REFRESH_TOKEN
 
 SIGNALS EXTRACTED:
-  - Subscribed newsletter senders (From: header pattern matching)
-  - Subject lines of unread/archived newsletters (curiosity debt proxy)
-  - Topics from email subjects that match curiosity keywords
+  - Subject lines of newsletter emails (subscription-debt proxy)
+  - Unread newsletters get higher weight (debt_score contribution)
 
 DEMO_MODE:
-  When TRACE_DEMO_MODE=true and Scalekit is not configured, returns synthetic
-  signals so the scheduler job can demonstrate the loop without real credentials.
+  When TRACE_DEMO_MODE=true and no token is configured, returns synthetic
+  signals so the scheduler can demonstrate the loop without real credentials.
 """
 from __future__ import annotations
 
@@ -27,17 +25,16 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+import httpx
+
 from trace.models import RawSignal, SignalSource
 
 _log = logging.getLogger(__name__)
 _DEMO_MODE = os.getenv("TRACE_DEMO_MODE", "false").lower() in ("true", "1", "yes")
 
-# Tool name registered in Scalekit dashboard for the Gmail MCP connector.
-_GMAIL_TOOL = "gmail_list_messages"
-_GMAIL_LABELS_TOOL = "gmail_list_labels"
+_TOKEN_URL = "https://oauth2.googleapis.com/token"
+_GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
 
-# Newsletter-sender heuristics — subjects from these senders are weighted as
-# subscription-debt signals (user subscribed but may not be reading them).
 _NEWSLETTER_KEYWORDS = [
     "unsubscribe", "newsletter", "weekly digest", "roundup", "dispatch",
     "briefing", "update", "edition", "issue #", "vol.", "weekly",
@@ -45,7 +42,6 @@ _NEWSLETTER_KEYWORDS = [
 
 
 def _is_newsletter(subject: str, snippet: str) -> bool:
-    """True if the email looks like a newsletter (not a personal email)."""
     lower = (subject + " " + snippet).lower()
     return any(kw in lower for kw in _NEWSLETTER_KEYWORDS)
 
@@ -57,11 +53,6 @@ def _parse_subject_to_signal(
     received_at: datetime,
     is_unread: bool,
 ) -> RawSignal | None:
-    """Convert a Gmail message header into a RawSignal.
-
-    Unread newsletters get higher weight via metadata — CuriosityGraphBuilder
-    uses this to compute subscription debt_score.
-    """
     content = subject.strip()
     if not content:
         return None
@@ -83,115 +74,112 @@ def _parse_subject_to_signal(
         return None
 
 
-class GmailCollector:
-    """Collects Gmail signals via Scalekit Token Vault.
+async def _get_access_token(client_id: str, client_secret: str, refresh_token: str) -> str:
+    """Exchange refresh token for a fresh access token."""
+    async with httpx.AsyncClient(timeout=10) as c:
+        r = await c.post(_TOKEN_URL, data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        })
+        r.raise_for_status()
+        return r.json()["access_token"]
 
-    Falls back to synthetic demo signals when Scalekit is not configured
+
+class GmailCollector:
+    """Collects Gmail signals via direct Google OAuth refresh token.
+
+    Falls back to synthetic demo signals when credentials are not configured
     and DEMO_MODE is enabled.
     """
 
-    def __init__(
-        self,
-        identifier: str | None = None,
-        connection_name: str = "gmail",
-        max_messages: int = 50,
-    ) -> None:
+    def __init__(self, max_messages: int = 50) -> None:
         from trace.config import get_settings
         s = get_settings()
-        self._identifier = identifier or s.scalekit_default_identifier
-        self._connection_name = connection_name
+        self._refresh_token = s.gmail_refresh_token
+        self._client_id = s.gmail_client_id
+        self._client_secret = s.gmail_client_secret
         self._max_messages = max_messages
 
-    async def collect(self) -> list[RawSignal]:
-        """Collect recent newsletter/email signals from Gmail."""
-        from trace.auth.scalekit import connect_execute_tool, get_scalekit_client
+    @property
+    def _configured(self) -> bool:
+        return bool(self._refresh_token and self._client_id and self._client_secret)
 
-        if get_scalekit_client() is None:
+    async def collect(self) -> list[RawSignal]:
+        if not self._configured:
             if _DEMO_MODE:
                 return self._demo_signals()
-            _log.info("GmailCollector: Scalekit not configured — skipping")
+            _log.info("GmailCollector: credentials not configured — skipping")
             return []
-
         try:
-            return await self._collect_via_scalekit(connect_execute_tool)
+            return await self._collect_direct()
         except Exception as exc:
-            err_str = str(exc)
-            # Scalekit connector not yet configured in dashboard — expected pre-setup.
-            # Log at DEBUG to avoid 30s spam; fall back to demo stubs silently.
-            if "RESOURCE_NOT_FOUND" in err_str or "failed to get tool" in err_str:
-                _log.debug("GmailCollector: connector not configured yet (%s)", err_str.split('\n')[0])
-                if _DEMO_MODE:
-                    return self._demo_signals()
-                return []
             _log.warning("GmailCollector failed: %s", exc)
             if _DEMO_MODE:
                 return self._demo_signals()
             return []
 
-    async def _collect_via_scalekit(self, execute_tool: Any) -> list[RawSignal]:
-        """Call Gmail via Scalekit Token Vault and parse the results."""
-        # Fetch recent messages (label: INBOX, past 7 days).
-        result = await execute_tool(
-            tool_name=_GMAIL_TOOL,
-            tool_input={
-                "maxResults": self._max_messages,
-                "labelIds": ["INBOX"],
-                "q": "newer_than:7d",
-            },
-            identifier=self._identifier,
+    async def _collect_direct(self) -> list[RawSignal]:
+        access_token = await _get_access_token(
+            self._client_id, self._client_secret, self._refresh_token
         )
+        headers = {"Authorization": f"Bearer {access_token}"}
 
-        messages = self._extract_messages(result)
-        if not messages:
-            _log.info("GmailCollector: no messages returned from Scalekit")
+        async with httpx.AsyncClient(timeout=20) as c:
+            # List recent inbox messages
+            r = await c.get(
+                f"{_GMAIL_API}/messages",
+                headers=headers,
+                params={"maxResults": self._max_messages, "labelIds": "INBOX", "q": "newer_than:7d"},
+            )
+            r.raise_for_status()
+            message_stubs = r.json().get("messages", [])
+
+        if not message_stubs:
+            _log.info("GmailCollector: no messages in inbox (last 7 days)")
             return []
 
         signals: list[RawSignal] = []
-        for msg in messages:
-            signal = self._message_to_signal(msg)
-            if signal:
-                signals.append(signal)
+        async with httpx.AsyncClient(timeout=20) as c:
+            for stub in message_stubs[:self._max_messages]:
+                msg_id = stub.get("id", "")
+                if not msg_id:
+                    continue
+                try:
+                    r = await c.get(
+                        f"{_GMAIL_API}/messages/{msg_id}",
+                        headers=headers,
+                        params={"format": "metadata", "metadataHeaders": ["Subject", "From", "Date"]},
+                    )
+                    r.raise_for_status()
+                    signal = self._parse_message(r.json())
+                    if signal:
+                        signals.append(signal)
+                except Exception as exc:
+                    _log.debug("GmailCollector: skipping msg %s: %s", msg_id, exc)
 
-        _log.info("GmailCollector: extracted %d signals from %d messages", len(signals), len(messages))
+        _log.info("GmailCollector: extracted %d signals from %d messages", len(signals), len(message_stubs))
         return signals
 
-    def _extract_messages(self, result: Any) -> list[dict[str, Any]]:
-        """Normalise varied response shapes from the Gmail MCP tool."""
-        if isinstance(result, list):
-            return [m for m in result if isinstance(m, dict)]
-        if isinstance(result, dict):
-            for key in ("messages", "items", "data", "results"):
-                val = result.get(key)
-                if isinstance(val, list):
-                    return [m for m in val if isinstance(m, dict)]
-        return []
-
-    def _message_to_signal(self, msg: dict[str, Any]) -> RawSignal | None:
-        """Convert a raw Gmail message dict to a RawSignal."""
+    def _parse_message(self, msg: dict[str, Any]) -> RawSignal | None:
         msg_id = msg.get("id", "")
-        subject = msg.get("subject", "") or msg.get("snippet", "")[:100]
-        from_addr = msg.get("from", "") or msg.get("sender", "")
-
-        # Parse timestamp — Gmail returns epoch ms or ISO string.
-        received_at: datetime
-        raw_ts = msg.get("internalDate") or msg.get("date")
-        try:
-            if isinstance(raw_ts, (int, float)):
-                received_at = datetime.fromtimestamp(raw_ts / 1000, tz=timezone.utc)
-            elif isinstance(raw_ts, str) and raw_ts.isdigit():
-                received_at = datetime.fromtimestamp(int(raw_ts) / 1000, tz=timezone.utc)
-            else:
-                received_at = datetime.now(timezone.utc)
-        except Exception:
-            received_at = datetime.now(timezone.utc)
-
         label_ids = msg.get("labelIds", [])
         is_unread = "UNREAD" in label_ids
+
+        headers = {h["name"].lower(): h["value"] for h in msg.get("payload", {}).get("headers", [])}
+        subject = headers.get("subject", "")
+        from_addr = headers.get("from", "")
+
+        raw_ts = msg.get("internalDate")
+        try:
+            received_at = datetime.fromtimestamp(int(raw_ts) / 1000, tz=timezone.utc) if raw_ts else datetime.now(timezone.utc)
+        except Exception:
+            received_at = datetime.now(timezone.utc)
 
         return _parse_subject_to_signal(subject, from_addr, msg_id, received_at, is_unread)
 
     def _demo_signals(self) -> list[RawSignal]:
-        """Synthetic signals for demo mode — realistic newsletter subjects."""
         demo_subjects = [
             ("The Batch: Deep Learning Weekly", "deeplearning_ai@newsletter.ai"),
             ("Diffusion Policy: new IROS paper roundup", "robotics_digest@example.com"),
@@ -202,11 +190,10 @@ class GmailCollector:
         signals = []
         for i, (subject, from_addr) in enumerate(demo_subjects):
             signal = _parse_subject_to_signal(
-                subject=subject,
-                from_addr=from_addr,
+                subject=subject, from_addr=from_addr,
                 msg_id=f"demo-msg-{i:03d}",
                 received_at=datetime.now(timezone.utc),
-                is_unread=(i % 2 == 0),  # every other is unread
+                is_unread=(i % 2 == 0),
             )
             if signal:
                 signals.append(signal)

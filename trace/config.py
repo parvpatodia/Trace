@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     # Scalekit OAuth. Set SLACK_WEBHOOK_URL in .env for instant demo without setup.
     slack_webhook_url: str | None = None
 
+    # Direct Gmail OAuth (no Scalekit required).
+    # Get refresh token via OAuth Playground: developers.google.com/oauthplayground
+    # Use your Google Cloud project's Client ID + Secret (Trace project).
+    gmail_refresh_token: str | None = None
+    gmail_client_id: str | None = None
+    gmail_client_secret: str | None = None
+
     # Tigris Data — S3-compatible globally-distributed object storage.
     # Set these to store uploads + Apify artifacts in Tigris instead of local disk.
     tigris_access_key_id: str | None = None
