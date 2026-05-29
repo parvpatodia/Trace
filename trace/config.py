@@ -68,7 +68,7 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite+aiosqlite:///./trace_data.db"
 
-    scraper_max_concurrent: int = Field(default=5, ge=1, le=20)
+    scraper_max_concurrent: int = Field(default=2, ge=1, le=20)
     context_token_budget: int = Field(default=8_000, ge=1_000, le=50_000)
     max_topics: int = Field(default=5, ge=1, le=20)
     max_articles_per_topic: int = Field(default=3, ge=1, le=10)

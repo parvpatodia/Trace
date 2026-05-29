@@ -1672,7 +1672,10 @@ async function approveAction(id) {
     const d=await _fetchJson('/approvals/'+id+'/approve',{method:'POST'});
     demoLog('✅ Approved: '+(d.action?.action_type||'?')+' — '+(d.action?.title||'').slice(0,50));
     checkApprovals();
-  } catch(e) { demoLog('❌ Approve failed: '+e.message); }
+  } catch(e) {
+    if (e.message.includes('404')) { demoLog('ℹ Already resolved — refreshing list'); checkApprovals(); }
+    else demoLog('❌ Approve failed: '+e.message);
+  }
 }
 
 async function rejectAction(id) {
@@ -1681,7 +1684,10 @@ async function rejectAction(id) {
     const d=await _fetchJson('/approvals/'+id+'/reject',{method:'POST'});
     demoLog('✗ Rejected: '+(d.action?.action_type||'?'));
     checkApprovals();
-  } catch(e) { demoLog('❌ Reject failed: '+e.message); }
+  } catch(e) {
+    if (e.message.includes('404')) { demoLog('ℹ Already resolved — refreshing list'); checkApprovals(); }
+    else demoLog('❌ Reject failed: '+e.message);
+  }
 }
 
 function renderD3Graph(data) {

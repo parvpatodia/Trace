@@ -79,7 +79,7 @@ from trace.scraper.base import ArticleScraper, ScraperError
 _ARXIV_API = "https://export.arxiv.org/api/query"
 _ATOM_NS = "http://www.w3.org/2005/Atom"
 _TIMEOUT = 20.0
-_MAX_RETRIES = 2
+_MAX_RETRIES = 3
 _MAX_AGE_YEARS = 10
 
 _log = logging.getLogger(__name__)
@@ -133,6 +133,15 @@ class ArXivScraper(ArticleScraper):
                 return response.text
             except httpx.HTTPStatusError as e:
                 last_exc = e
+                if e.response.status_code == 429:
+                    # Rate-limited — back off longer (3s, 6s, 12s)
+                    wait = 3 * (2 ** attempt)
+                    _log.warning(
+                        "ArXiv rate-limited (attempt %d/%d), waiting %ds…",
+                        attempt + 1, _MAX_RETRIES + 1, wait,
+                    )
+                    await asyncio.sleep(wait)
+                    continue
                 if e.response.status_code < 500:
                     raise ScraperError(
                         self.source,
