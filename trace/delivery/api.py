@@ -424,6 +424,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount the Personal Context API (v2 — Gemini-backed hackathon path).
+# Lives under /v2/* so it coexists with the legacy newsletter endpoints.
+try:
+    from trace.delivery.context_api import router as context_router
+    app.include_router(context_router)
+    _log.info("Personal Context API mounted at /v2")
+except Exception as _ctx_err:
+    _log.warning("Context API mount failed: %s", _ctx_err)
+
 # Mount the Curiosity OS MCP server at /mcp.
 # Claude Desktop connects to: http://localhost:8000/mcp  (Streamable HTTP)
 # SSE fallback:               http://localhost:8000/mcp/sse

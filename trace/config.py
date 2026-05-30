@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -10,11 +11,21 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
-        extra="forbid",
+        # Cloud Run and other managed runtimes inject env vars (PORT, K_SERVICE,
+        # etc.) that we don't model. "ignore" prevents startup crashes; explicit
+        # fields below still validate.
+        extra="ignore",
     )
 
-    anthropic_api_key: str
+    # Anthropic is now optional — Trace's hackathon path is Gemini-first.
+    # The legacy newsletter pipeline still uses Anthropic when this is set.
+    anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-6"
+
+    # Gemini — primary LLM for the Personal Context API for AI Agents.
+    # Get a key at https://aistudio.google.com/apikey
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
 
     apify_api_token: str = ""
     # apify/google-search-scraper is the official Apify-maintained actor.
@@ -91,18 +102,16 @@ class Settings(BaseSettings):
     upload_dir: Path = Path("./uploads")
 
     api_host: str = "0.0.0.0"
-    api_port: int = Field(default=8000, ge=1024, le=65535)
+    # PORT is the de-facto env var on Cloud Run, Fly, Render, Railway. It takes
+    # precedence so the same image runs locally and in managed runtimes.
+    api_port: int = Field(
+        default_factory=lambda: int(os.getenv("PORT", "8000")),
+        ge=1, le=65535,
+    )
 
     # Demo mode — compresses scheduler intervals to 30 s for live demos.
     # Set TRACE_DEMO_MODE=true in .env or environment before starting the server.
     trace_demo_mode: bool = False
-
-    @field_validator("anthropic_model")
-    @classmethod
-    def must_be_claude_model(cls, v: str) -> str:
-        if not v.startswith("claude-"):
-            raise ValueError(f"anthropic_model must start with 'claude-', got: {v!r}")
-        return v
 
     @field_validator("database_url")
     @classmethod
