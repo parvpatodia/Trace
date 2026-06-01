@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from typing import Any
 
 from trace.graph.extractor import RawTopicData, TopicExtractionError, _SYSTEM_PROMPT
@@ -41,7 +42,7 @@ _log = logging.getLogger(__name__)
 
 _DEFAULT_MODEL = "gemini-2.5-flash"
 _DEFAULT_BATCH_SIZE = 100
-_DEFAULT_MAX_OUTPUT_TOKENS = 4096
+_DEFAULT_MAX_OUTPUT_TOKENS = 16384
 
 
 class GeminiTopicExtractor:
@@ -132,14 +133,9 @@ class GeminiTopicExtractor:
             + json.dumps(payload, ensure_ascii=False, indent=2)
         )
 
-        try:
-            response = self._client.models.generate_content(
-                model=self._model_name,
-                contents=user_text,
-                config=self._generate_config,
-            )
-        except Exception as exc:  # google.genai raises a variety of errors
-            raise TopicExtractionError(f"Gemini API error: {exc}") from exc
+        response = _generate_with_retry(
+            self._client, self._model_name, user_text, self._generate_config,
+        )
 
         raw_text = _extract_text(response)
         if not raw_text:
@@ -148,6 +144,45 @@ class GeminiTopicExtractor:
                 f"{getattr(response, 'candidates', [{}])[0] if getattr(response, 'candidates', None) else 'unknown'}"
             )
         return _parse_response(raw_text, valid_ids)
+
+
+_RETRY_STATUS_CODES: frozenset[int] = frozenset({429, 500, 502, 503, 504})
+_MAX_RETRIES: int = 4
+
+
+def _generate_with_retry(
+    client: Any,
+    model_name: str,
+    contents: str,
+    config: Any,
+) -> Any:
+    """Call generate_content with exponential backoff on transient errors.
+
+    Gemini 2.5 Flash under free-tier load returns 503 UNAVAILABLE intermittently
+    even when the key has quota remaining. The Google SDK retries internally
+    for some cases but not consistently for 503s on this model, so we wrap it.
+
+    Backoff: 1s, 2s, 4s, 8s. Total worst-case extra latency: 15s.
+    """
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_RETRIES + 1):
+        try:
+            return client.models.generate_content(
+                model=model_name, contents=contents, config=config,
+            )
+        except Exception as exc:
+            last_exc = exc
+            status = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+            if status not in _RETRY_STATUS_CODES or attempt == _MAX_RETRIES:
+                raise TopicExtractionError(f"Gemini API error: {exc}") from exc
+            sleep_s = 2 ** attempt
+            _log.warning(
+                "Gemini %s on attempt %d/%d — retrying in %ds",
+                status, attempt + 1, _MAX_RETRIES, sleep_s,
+            )
+            time.sleep(sleep_s)
+    # Unreachable — loop either returns or raises. Defensive for type checker.
+    raise TopicExtractionError(f"Gemini API error: {last_exc}") from last_exc
 
 
 def _extract_text(response: Any) -> str:

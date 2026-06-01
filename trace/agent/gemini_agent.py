@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any
 
 from trace.context.store import ContextItem
@@ -129,10 +130,8 @@ class GeminiContextAgent:
 
     def _call_bare(self, question: str) -> str:
         try:
-            response = self._client.models.generate_content(
-                model=self._model_name,
-                contents=question,
-                config=self._bare_config,
+            response = _generate_with_retry(
+                self._client, self._model_name, question, self._bare_config,
             )
             return _safe_text(response)
         except Exception as exc:
@@ -155,10 +154,8 @@ class GeminiContextAgent:
             temperature=self._bare_config.temperature,
         )
         try:
-            response = self._client.models.generate_content(
-                model=self._model_name,
-                contents=question,
-                config=ctx_config,
+            response = _generate_with_retry(
+                self._client, self._model_name, question, ctx_config,
             )
             return _safe_text(response)
         except Exception as exc:
@@ -180,6 +177,33 @@ def _format_context_for_prompt(items: list[tuple[ContextItem, float]]) -> str:
             tag = f"SIGNAL · {item.topic_name}"
         lines.append(f"{i}. [{tag}] (relevance {score:.2f}) {item.text}")
     return "\n".join(lines)
+
+
+_RETRY_STATUS_CODES: frozenset[int] = frozenset({429, 500, 502, 503, 504})
+_MAX_RETRIES: int = 4
+
+
+def _generate_with_retry(client: Any, model: str, contents: str, config: Any) -> Any:
+    """Same retry contract as the extractor — exponential backoff on 5xx/429.
+
+    See gemini_extractor._generate_with_retry for rationale.
+    """
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_RETRIES + 1):
+        try:
+            return client.models.generate_content(model=model, contents=contents, config=config)
+        except Exception as exc:
+            last_exc = exc
+            status = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+            if status not in _RETRY_STATUS_CODES or attempt == _MAX_RETRIES:
+                raise
+            sleep_s = 2 ** attempt
+            _log.warning(
+                "Gemini %s on attempt %d/%d — retrying in %ds",
+                status, attempt + 1, _MAX_RETRIES, sleep_s,
+            )
+            time.sleep(sleep_s)
+    raise last_exc  # type: ignore[misc]
 
 
 def _safe_text(response: Any) -> str:
