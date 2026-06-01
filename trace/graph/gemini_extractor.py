@@ -79,7 +79,6 @@ class GeminiTopicExtractor:
             system_instruction=_SYSTEM_PROMPT,
             max_output_tokens=max_output_tokens,
             temperature=0.2,  # low — we want deterministic topic clustering
-            response_mime_type="application/json",
         )
 
     async def extract(self, signals: list[RawSignal]) -> list[RawTopicData]:

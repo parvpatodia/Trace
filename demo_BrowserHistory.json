@@ -1,0 +1,264 @@
+{
+  "Browser History": [
+    {
+      "title": "Attention Is All You Need - arXiv",
+      "url": "https://arxiv.org/abs/1706.03762",
+      "time_usec": 1748390400000000
+    },
+    {
+      "title": "Mechanistic Interpretability in Neural Networks - Anthropic Research",
+      "url": "https://www.anthropic.com/research/mechanistic-interpretability",
+      "time_usec": 1748394000000000
+    },
+    {
+      "title": "Superposition, Memorization, and Double Descent - Anthropic",
+      "url": "https://transformer-circuits.pub/2023/superposition-memorization/index.html",
+      "time_usec": 1748397600000000
+    },
+    {
+      "title": "Toy Models of Superposition - Transformer Circuits",
+      "url": "https://transformer-circuits.pub/2022/toy_model/index.html",
+      "time_usec": 1748401200000000
+    },
+    {
+      "title": "In-context Learning and Induction Heads - Transformer Circuits",
+      "url": "https://transformer-circuits.pub/2022/in-context-learning-and-induction-heads/index.html",
+      "time_usec": 1748404800000000
+    },
+    {
+      "title": "Sparse Autoencoders Find Highly Interpretable Features - DeepMind",
+      "url": "https://deepmind.google/research/publications/sparse-autoencoders-find-highly-interpretable-features/",
+      "time_usec": 1748408400000000
+    },
+    {
+      "title": "Scaling Monosemanticity - Anthropic",
+      "url": "https://transformer-circuits.pub/2024/scaling-monosemanticity/index.html",
+      "time_usec": 1748412000000000
+    },
+    {
+      "title": "What is a Feature? - Distill",
+      "url": "https://distill.pub/2020/circuits/zoom-in/",
+      "time_usec": 1748415600000000
+    },
+    {
+      "title": "Interpretability in the Wild: a Circuit for Indirect Object Identification in GPT-2",
+      "url": "https://arxiv.org/abs/2211.00593",
+      "time_usec": 1748419200000000
+    },
+    {
+      "title": "The Rust Programming Language Book",
+      "url": "https://doc.rust-lang.org/book/",
+      "time_usec": 1748430000000000
+    },
+    {
+      "title": "Rust Async Book \u2014 async/await in Rust",
+      "url": "https://rust-lang.github.io/async-book/",
+      "time_usec": 1748433600000000
+    },
+    {
+      "title": "Tokio Tutorial - async Rust runtime",
+      "url": "https://tokio.rs/tokio/tutorial",
+      "time_usec": 1748437200000000
+    },
+    {
+      "title": "Writing an OS in Rust - Philipp Oppermann",
+      "url": "https://os.phil-opp.com/",
+      "time_usec": 1748440800000000
+    },
+    {
+      "title": "Are we web yet? \u2014 Rust web frameworks",
+      "url": "https://www.arewewebyet.org/",
+      "time_usec": 1748444400000000
+    },
+    {
+      "title": "Axum \u2014 web framework built with Tokio, Tower, and Hyper",
+      "url": "https://github.com/tokio-rs/axum",
+      "time_usec": 1748448000000000
+    },
+    {
+      "title": "Rust Performance Book",
+      "url": "https://nnethercote.github.io/perf-book/",
+      "time_usec": 1748451600000000
+    },
+    {
+      "title": "Why Discord is switching from Go to Rust",
+      "url": "https://discord.com/blog/why-discord-is-switching-from-go-to-rust",
+      "time_usec": 1748455200000000
+    },
+    {
+      "title": "Memory Safety in Firefox - Mozilla Hacks",
+      "url": "https://hacks.mozilla.org/category/rust/",
+      "time_usec": 1748458800000000
+    },
+    {
+      "title": "Sequoia Capital \u2014 The Arc of the AI Revolution",
+      "url": "https://www.sequoiacap.com/article/ai-memo/",
+      "time_usec": 1748469600000000
+    },
+    {
+      "title": "a16z AI Canon \u2014 curated reading list",
+      "url": "https://a16z.com/ai-canon/",
+      "time_usec": 1748473200000000
+    },
+    {
+      "title": "Why AI Companies Won't Win the AI Race \u2014 Ben Thompson, Stratechery",
+      "url": "https://stratechery.com/",
+      "time_usec": 1748476800000000
+    },
+    {
+      "title": "YC W24 Demo Day \u2014 top AI infrastructure startups",
+      "url": "https://www.ycombinator.com/companies",
+      "time_usec": 1748480400000000
+    },
+    {
+      "title": "How to Pitch a Seed Round \u2014 First Round Capital",
+      "url": "https://firstround.com/review/",
+      "time_usec": 1748484000000000
+    },
+    {
+      "title": "The Great Bifurcation \u2014 Elad Gil",
+      "url": "https://blog.eladgil.com/",
+      "time_usec": 1748487600000000
+    },
+    {
+      "title": "Supermemory \u2014 personal AI memory layer",
+      "url": "https://supermemory.ai",
+      "time_usec": 1748491200000000
+    },
+    {
+      "title": "Mem0 \u2014 memory for AI agents",
+      "url": "https://mem0.ai",
+      "time_usec": 1748494800000000
+    },
+    {
+      "title": "Bryan Johnson Blueprint Protocol \u2014 longevity diet",
+      "url": "https://protocol.bryanjohnson.com/",
+      "time_usec": 1748505600000000
+    },
+    {
+      "title": "Lifespan: Why We Age and Why We Don't Have To \u2014 David Sinclair",
+      "url": "https://lifespanbook.com/",
+      "time_usec": 1748509200000000
+    },
+    {
+      "title": "Peter Attia \u2014 centenarian decathlon framework",
+      "url": "https://peterattiamd.com/",
+      "time_usec": 1748512800000000
+    },
+    {
+      "title": "Time-restricted eating and longevity \u2014 Satchin Panda, Salk Institute",
+      "url": "https://www.salk.edu/scientist/satchidananda-panda/",
+      "time_usec": 1748516400000000
+    },
+    {
+      "title": "Omega-3 supplementation meta-analysis \u2014 PubMed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/",
+      "time_usec": 1748520000000000
+    },
+    {
+      "title": "VO2 Max Training Guide \u2014 Huberman Lab",
+      "url": "https://www.hubermanlab.com/",
+      "time_usec": 1748523600000000
+    },
+    {
+      "title": "Mechanistic Interpretability: What It Is and Why It Matters - LessWrong",
+      "url": "https://www.lesswrong.com/tag/mechanistic-interpretability",
+      "time_usec": 1748534400000000
+    },
+    {
+      "title": "Circuits Thread \u2014 curve detectors and multimodal neurons",
+      "url": "https://distill.pub/2020/circuits/",
+      "time_usec": 1748538000000000
+    },
+    {
+      "title": "Neel Nanda \u2014 TransformerLens library",
+      "url": "https://github.com/TransformerLensOrg/TransformerLens",
+      "time_usec": 1748541600000000
+    },
+    {
+      "title": "ELK \u2014 Eliciting Latent Knowledge - ARC",
+      "url": "https://docs.google.com/document/d/1WwsnJQstPq91_Yh-Ch2XRL8H_EpsnjrC1dwZXR37PC8/",
+      "time_usec": 1748545200000000
+    },
+    {
+      "title": "Rust std::collections documentation",
+      "url": "https://doc.rust-lang.org/std/collections/",
+      "time_usec": 1748556000000000
+    },
+    {
+      "title": "Lifetimes in Rust \u2014 The Book Chapter 10",
+      "url": "https://doc.rust-lang.org/book/ch10-03-lifetime-syntax.html",
+      "time_usec": 1748559600000000
+    },
+    {
+      "title": "Serde \u2014 serialization framework for Rust",
+      "url": "https://serde.rs/",
+      "time_usec": 1748563200000000
+    },
+    {
+      "title": "Zero-cost abstractions in Rust \u2014 Niko Matsakis",
+      "url": "https://blog.rust-lang.org/",
+      "time_usec": 1748566800000000
+    },
+    {
+      "title": "Building a startup from 0 to Series A \u2014 YC Blog",
+      "url": "https://www.ycombinator.com/blog/",
+      "time_usec": 1748577600000000
+    },
+    {
+      "title": "AI-native product design \u2014 Lenny's Newsletter",
+      "url": "https://www.lennysnewsletter.com/",
+      "time_usec": 1748581200000000
+    },
+    {
+      "title": "The Founder's Dilemmas \u2014 Noam Wasserman",
+      "url": "https://www.amazon.com/Founders-Dilemmas-Anticipating-Entrepreneurship-Management/dp/0691158304",
+      "time_usec": 1748584800000000
+    },
+    {
+      "title": "Creatine supplementation and cognitive performance \u2014 Examine.com",
+      "url": "https://examine.com/supplements/creatine/",
+      "time_usec": 1748595600000000
+    },
+    {
+      "title": "NMN vs NR \u2014 longevity supplements compared",
+      "url": "https://examine.com/supplements/nicotinamide-riboside/",
+      "time_usec": 1748599200000000
+    },
+    {
+      "title": "Sleep architecture and memory consolidation \u2014 Matthew Walker",
+      "url": "https://www.sleepdiplomat.com/",
+      "time_usec": 1748602800000000
+    },
+    {
+      "title": "Sparse autoencoders for language model interpretability \u2014 arXiv",
+      "url": "https://arxiv.org/abs/2309.08600",
+      "time_usec": 1748620800000000
+    },
+    {
+      "title": "Representation Engineering: A Top-Down Approach to AI Transparency \u2014 arXiv",
+      "url": "https://arxiv.org/abs/2310.01405",
+      "time_usec": 1748624400000000
+    },
+    {
+      "title": "Gemini 2.5 Flash \u2014 Google AI Studio",
+      "url": "https://aistudio.google.com/",
+      "time_usec": 1748628000000000
+    },
+    {
+      "title": "Rust closures and iterators \u2014 Rustlings exercises",
+      "url": "https://github.com/rust-lang/rustlings",
+      "time_usec": 1748638800000000
+    },
+    {
+      "title": "How I think about fundraising \u2014 Paul Graham Essays",
+      "url": "http://paulgraham.com/fundraising.html",
+      "time_usec": 1748642400000000
+    },
+    {
+      "title": "Zone 2 cardio and metabolic health \u2014 I\u00f1igo San Mill\u00e1n",
+      "url": "https://www.uofuhealth.org/news/archive/low-intensity-exercise-crucial-good-metabolic-health",
+      "time_usec": 1748646000000000
+    }
+  ]
+}
